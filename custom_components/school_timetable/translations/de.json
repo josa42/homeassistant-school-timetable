@@ -1,0 +1,15 @@
+{
+  "title": "Stundenplan",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Stundenplan",
+        "description": "Kinder, Stundenpläne und Ferien werden im Stundenplan-Panel in der Seitenleiste bearbeitet. Hier gibt es nichts einzustellen."
+      }
+    },
+    "abort": {
+      "already_configured": "Stundenplan ist bereits eingerichtet.",
+      "single_instance_allowed": "Stundenplan ist bereits eingerichtet. Eine Instanz genügt."
+    }
+  }
+}

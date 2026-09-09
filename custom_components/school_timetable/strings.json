@@ -1,0 +1,15 @@
+{
+  "title": "School Timetable",
+  "config": {
+    "step": {
+      "user": {
+        "title": "School Timetable",
+        "description": "Kids, timetables and holidays are edited in the School panel in the sidebar. There is nothing to configure here."
+      }
+    },
+    "abort": {
+      "already_configured": "School Timetable is already set up.",
+      "single_instance_allowed": "School Timetable is already set up. Only one instance is needed."
+    }
+  }
+}
