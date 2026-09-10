@@ -16,7 +16,7 @@ async def test_setup_creates_a_calendar_per_kid(hass: HomeAssistant, hass_storag
     entry = await setup_integration(hass)
 
     assert entry.state is ConfigEntryState.LOADED
-    assert hass.states.get("calendar.anna") is not None
+    assert hass.states.get("calendar.school_anna") is not None
 
 
 async def test_setup_registers_the_sidebar_panel(hass: HomeAssistant, hass_storage) -> None:

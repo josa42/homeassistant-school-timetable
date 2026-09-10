@@ -1,8 +1,8 @@
 # School Timetable for Home Assistant
 
 Custom integration that turns your kids' school timetables into Home Assistant
-calendars. Each kid gets one calendar entity with one event per school day, and
-the day's lessons in the event description.
+calendars. Each kid gets one calendar entity named after them, with one event per school
+day and the day's lessons in the event description.
 
 Everything is edited in a **Stundenplan** panel in the sidebar: kids, their
 weekly grids, and the shared list of school and public holidays. Holidays can be
@@ -22,10 +22,10 @@ A date produces an event for a kid when all of these hold:
 The event runs from the first lesson's start to the last lesson's end:
 
 ```yaml
-calendar.anna:
+calendar.schule_anna:
   state: on
   attributes:
-    message: Schule
+    message: Schule (Anna)
     start_time: "2026-09-14 08:00:00"
     end_time: "2026-09-14 13:25:00"
     description: |-
@@ -55,7 +55,7 @@ off.
 
 Open **Stundenplan** in the sidebar.
 
-1. **Add a kid.** A `calendar.<name>` entity appears right away.
+1. **Add a kid.** A calendar entity named `Schule (<name>)` appears right away.
 2. **Add a timetable.** Give it a label such as `2026/27` and a start date. The
    first one starts from a standard German bell schedule; later ones start as a
    copy of the previous timetable, so a yearly rollover is a matter of fixing up
@@ -99,7 +99,7 @@ automation:
   - alias: Wake Anna up an hour before school
     triggers:
       - trigger: calendar
-        entity_id: calendar.anna
+        entity_id: calendar.schule_anna
         event: start
         offset: "-01:00:00"
     actions:

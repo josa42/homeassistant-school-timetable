@@ -17,9 +17,9 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.util import dt as dt_util
 
 from .const import (
-    DEFAULT_EVENT_SUMMARY,
+    DEFAULT_DISPLAY_NAME,
+    DISPLAY_NAME,
     DOMAIN,
-    EVENT_SUMMARY,
     NEXT_EVENT_LOOKAHEAD_DAYS,
     PANEL_ICON,
 )
@@ -30,6 +30,11 @@ from .store import SchoolTimetableStore
 _LOGGER = logging.getLogger(__name__)
 
 
+def display_name(language: str, kid_name: str) -> str:
+    """The name shared by a kid's calendar entity and its events."""
+    return DISPLAY_NAME.get(language, DEFAULT_DISPLAY_NAME).format(name=kid_name)
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry,
@@ -37,6 +42,7 @@ async def async_setup_entry(
 ) -> None:
     """Create a calendar for every kid, and keep up as kids come and go."""
     store: SchoolTimetableStore = entry.runtime_data.store
+    language = (hass.config.language or "en").split("-")[0]
     known: dict[str, SchoolCalendarEntity] = {}
 
     @callback
@@ -44,7 +50,9 @@ async def async_setup_entry(
         current = {kid.id: kid for kid in store.data.kids}
 
         added = [
-            SchoolCalendarEntity(store, kid) for kid_id, kid in current.items() if kid_id not in known
+            SchoolCalendarEntity(store, kid, language)
+            for kid_id, kid in current.items()
+            if kid_id not in known
         ]
         for entity in added:
             known[entity.kid_id] = entity
@@ -80,11 +88,12 @@ class SchoolCalendarEntity(CalendarEntity):
 
     _attr_icon = PANEL_ICON
 
-    def __init__(self, store: SchoolTimetableStore, kid: Kid) -> None:
+    def __init__(self, store: SchoolTimetableStore, kid: Kid, language: str) -> None:
         self._store = store
+        self._language = language
         self.kid_id = kid.id
         self._attr_unique_id = f"{DOMAIN}_{kid.id}"
-        self._attr_name = kid.name
+        self._attr_name = display_name(language, kid.name)
 
     async def async_added_to_hass(self) -> None:
         """Refresh whenever the panel changes anything."""
@@ -94,13 +103,14 @@ class SchoolCalendarEntity(CalendarEntity):
     @callback
     def _handle_store_update(self) -> None:
         kid = self._kid
-        if kid is not None and kid.name != self._attr_name:
-            self._attr_name = kid.name
+        name = display_name(self._language, kid.name) if kid else None
+        if name is not None and name != self._attr_name:
+            self._attr_name = name
             registry = er.async_get(self.hass)
             if self.entity_id and registry.async_get(self.entity_id):
                 # Keeps the sidebar and entity list showing the new name; the
                 # entity_id itself stays put, as it does for any HA rename.
-                registry.async_update_entity(self.entity_id, original_name=kid.name)
+                registry.async_update_entity(self.entity_id, original_name=name)
         self.async_write_ha_state()
 
     @property
@@ -145,14 +155,9 @@ class SchoolCalendarEntity(CalendarEntity):
     def _build_event(self, day: SchoolDay) -> CalendarEvent:
         timezone = dt_util.DEFAULT_TIME_ZONE
         return CalendarEvent(
-            summary=self._summary,
+            summary=self._attr_name,
             start=datetime.combine(day.date, day.start, tzinfo=timezone),
             end=datetime.combine(day.date, day.end, tzinfo=timezone),
             description=day.description(),
             uid=f"{self.kid_id}-{day.date.isoformat()}",
         )
-
-    @property
-    def _summary(self) -> str:
-        language = (self.hass.config.language or "en").split("-")[0]
-        return EVENT_SUMMARY.get(language, DEFAULT_EVENT_SUMMARY)

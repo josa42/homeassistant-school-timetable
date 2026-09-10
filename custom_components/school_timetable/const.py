@@ -36,12 +36,14 @@ SOURCE_ICS: Final = "ics"
 # a break.
 NEXT_EVENT_LOOKAHEAD_DAYS: Final = 400
 
-# Event summary per language, used for the generated all-school-day events.
-EVENT_SUMMARY: Final[dict[str, str]] = {
-    "en": "School",
-    "de": "Schule",
+# Display name per language, used for both the calendar entity and the summary
+# of every event it generates, so a shared calendar view says whose school day
+# it is.
+DISPLAY_NAME: Final[dict[str, str]] = {
+    "en": "School ({name})",
+    "de": "Schule ({name})",
 }
-DEFAULT_EVENT_SUMMARY: Final = "School"
+DEFAULT_DISPLAY_NAME: Final = "School ({name})"
 
 # Sidebar label per language. panel_custom takes a plain string, so the title
 # is picked at registration time from hass.config.language.

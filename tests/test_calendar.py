@@ -37,11 +37,11 @@ async def test_one_event_per_school_day(hass: HomeAssistant, hass_storage) -> No
     seed_storage(hass_storage)
     await setup_integration(hass)
 
-    events = await _get_events(hass, "calendar.anna", "2026-09-14 00:00:00", "2026-09-21 00:00:00")
+    events = await _get_events(hass, "calendar.school_anna", "2026-09-14 00:00:00", "2026-09-21 00:00:00")
 
     assert len(events) == 2
     monday, tuesday = events
-    assert monday["summary"] == "School"
+    assert monday["summary"] == "School (Anna)"
     assert monday["description"] == "1. 08:00 Mathe\n2. 08:50 Deutsch"
     assert dt_util.parse_datetime(monday["start"]) == datetime(
         2026, 9, 14, 8, 0, tzinfo=dt_util.DEFAULT_TIME_ZONE
@@ -58,21 +58,23 @@ async def test_holidays_and_days_off_produce_no_events(hass: HomeAssistant, hass
     seed_storage(hass_storage)
     await setup_integration(hass)
 
-    holidays = await _get_events(hass, "calendar.anna", "2026-10-12 00:00:00", "2026-10-24 00:00:00")
-    day_off = await _get_events(hass, "calendar.anna", "2026-11-02 00:00:00", "2026-11-03 00:00:00")
+    holidays = await _get_events(hass, "calendar.school_anna", "2026-10-12 00:00:00", "2026-10-24 00:00:00")
+    day_off = await _get_events(hass, "calendar.school_anna", "2026-11-02 00:00:00", "2026-11-03 00:00:00")
 
     assert holidays == []
     assert day_off == []
 
 
-async def test_summary_follows_the_configured_language(hass: HomeAssistant, hass_storage) -> None:
+async def test_name_follows_the_configured_language(hass: HomeAssistant, hass_storage) -> None:
+    """Entity and events share one name, so a shared calendar says whose day it is."""
     hass.config.language = "de"
     seed_storage(hass_storage)
     await setup_integration(hass)
 
-    events = await _get_events(hass, "calendar.anna", "2026-09-14 00:00:00", "2026-09-15 00:00:00")
+    events = await _get_events(hass, "calendar.schule_anna", "2026-09-14 00:00:00", "2026-09-15 00:00:00")
 
-    assert events[0]["summary"] == "Schule"
+    assert events[0]["summary"] == "Schule (Anna)"
+    assert hass.states.get("calendar.schule_anna").attributes["friendly_name"] == "Schule (Anna)"
 
 
 async def test_state_is_on_during_a_lesson(hass: HomeAssistant, hass_storage, freezer) -> None:
@@ -80,7 +82,7 @@ async def test_state_is_on_during_a_lesson(hass: HomeAssistant, hass_storage, fr
     seed_storage(hass_storage)
     await setup_integration(hass)
 
-    state = hass.states.get("calendar.anna")
+    state = hass.states.get("calendar.school_anna")
 
     assert state.state == "on"
     assert state.attributes["description"] == "1. 08:00 Mathe\n2. 08:50 Deutsch"
@@ -93,7 +95,7 @@ async def test_state_points_at_the_next_school_day_when_off(
     seed_storage(hass_storage)
     await setup_integration(hass)
 
-    state = hass.states.get("calendar.anna")
+    state = hass.states.get("calendar.school_anna")
 
     assert state.state == "off"
     assert state.attributes["start_time"] == "2026-09-14 08:00:00"
@@ -106,7 +108,7 @@ async def test_adding_a_kid_creates_a_calendar(hass: HomeAssistant, hass_storage
     await entry.runtime_data.store.async_add_kid("Ben")
     await hass.async_block_till_done()
 
-    assert hass.states.get("calendar.ben") is not None
+    assert hass.states.get("calendar.school_ben") is not None
 
 
 async def test_deleting_a_kid_removes_the_calendar(hass: HomeAssistant, hass_storage) -> None:
@@ -116,8 +118,8 @@ async def test_deleting_a_kid_removes_the_calendar(hass: HomeAssistant, hass_sto
     await entry.runtime_data.store.async_delete_kid(KID_ID)
     await hass.async_block_till_done()
 
-    assert hass.states.get("calendar.anna") is None
-    assert er.async_get(hass).async_get("calendar.anna") is None
+    assert hass.states.get("calendar.school_anna") is None
+    assert er.async_get(hass).async_get("calendar.school_anna") is None
 
 
 async def test_renaming_a_kid_updates_the_entity_name(hass: HomeAssistant, hass_storage) -> None:
@@ -127,8 +129,8 @@ async def test_renaming_a_kid_updates_the_entity_name(hass: HomeAssistant, hass_
     await entry.runtime_data.store.async_rename_kid(KID_ID, "Anna B.")
     await hass.async_block_till_done()
 
-    state = hass.states.get("calendar.anna")
-    assert state.attributes["friendly_name"] == "Anna B."
+    state = hass.states.get("calendar.school_anna")
+    assert state.attributes["friendly_name"] == "School (Anna B.)"
 
 
 async def test_edits_show_up_without_a_reload(hass: HomeAssistant, hass_storage) -> None:
@@ -142,6 +144,6 @@ async def test_edits_show_up_without_a_reload(hass: HomeAssistant, hass_storage)
     await store.async_save_timetable(KID_ID, raw)
     await hass.async_block_till_done()
 
-    events = await _get_events(hass, "calendar.anna", "2026-09-16 00:00:00", "2026-09-17 00:00:00")
+    events = await _get_events(hass, "calendar.school_anna", "2026-09-16 00:00:00", "2026-09-17 00:00:00")
 
     assert [event["description"] for event in events] == ["1. 08:00 Schwimmen"]
