@@ -83,7 +83,6 @@ const STRINGS = {
     "timetable.end": "End",
     "timetable.add_period": "Add period",
     "timetable.overlap": "This overlaps another period.",
-    "timetable.range_overlap": "This date range overlaps another timetable.",
     "timetable.end_before_start": "The end must be after the start.",
     "timetable.lessons": "Lessons",
     "timetable.no_periods": "No periods yet. Add one to start filling in lessons.",
@@ -178,7 +177,6 @@ const STRINGS = {
     "timetable.end": "Ende",
     "timetable.add_period": "Stunde hinzufügen",
     "timetable.overlap": "Überschneidet sich mit einer anderen Stunde.",
-    "timetable.range_overlap": "Der Zeitraum überschneidet sich mit einem anderen Stundenplan.",
     "timetable.end_before_start": "Das Ende muss nach dem Beginn liegen.",
     "timetable.lessons": "Fächer",
     "timetable.no_periods": "Noch keine Stunden. Füge eine hinzu, um Fächer einzutragen.",
@@ -239,7 +237,6 @@ const WS_ERROR_CODES = {
   2: "error.invalid_auth",
   3: "error.connection_lost",
   not_found: "common.not_set_up",
-  overlap: "timetable.range_overlap",
   unauthorized: "error.invalid_auth",
 };
 
@@ -2344,7 +2341,6 @@ class SchoolTimetablePanel extends HTMLElement {
         { key: "valid_to", label: _t(this._hass, "timetable.valid_to"), type: "date" },
       ],
       submitLabel: _t(this._hass, "common.add"),
-      validate: (input) => this._validateRange(input, null),
     });
     if (!values) return;
     const result = await this._call({
@@ -2360,58 +2356,6 @@ class SchoolTimetablePanel extends HTMLElement {
     this._timetableId = result.timetable_id;
     this._draft = null;
     this._dirty = false;
-  }
-
-  _validateRange({ valid_from, valid_to }, timetableId) {
-    // Two timetables covering one date would make the generated day depend on
-    // tie-breaking nobody can see, so the store refuses it too.
-    if (valid_to && valid_to <= valid_from) return _t(this._hass, "timetable.end_before_start");
-    const kid = this._kid();
-    const clashes = (kid ? kid.timetables : []).some(
-      (other) =>
-        other.id !== timetableId &&
-        (!valid_to || other.valid_from <= valid_to) &&
-        (!other.valid_to || valid_from <= other.valid_to)
-    );
-    return clashes ? _t(this._hass, "timetable.range_overlap") : null;
-  }
-
-  // The grid cells are keyed by row position; lessons take their period number
-  // from the row they sit in.
-  _draftPayload() {
-    const draft = this._draft;
-    const periods = draft.periods.map((period) => ({
-      period: Number(period.period),
-      start: period.start,
-      end: period.end,
-    }));
-    const lessons = [];
-    for (const [key, cell] of Object.entries(draft.cells)) {
-      const [day, index] = key.split(":").map(Number);
-      const period = periods[index];
-      const subject = (cell.subject || "").trim();
-      if (!period || !subject) continue;
-      lessons.push({ weekday: day, period: period.period, subject, week: cell.week || "every" });
-    }
-    return { periods, lessons };
-  }
-
-  async _saveTimetable(kid) {
-    const draft = this._draft;
-    await this._call({
-      type: "school_timetable/timetable/save",
-      kid_id: kid.id,
-      timetable: {
-        id: draft.id,
-        label: draft.label,
-        valid_from: draft.valid_from,
-        valid_to: draft.valid_to || null,
-        ...this._draftPayload(),
-      },
-    });
-    this._dirty = false;
-    this._draft = null;
-    this._render();
   }
 
   async _editTimetableDetails(kid, timetable) {
@@ -2439,7 +2383,6 @@ class SchoolTimetablePanel extends HTMLElement {
           value: timetable.valid_to || "",
         },
       ],
-      validate: (input) => this._validateRange(input, timetable.id),
       deletable: true,
     });
     if (!values) return;

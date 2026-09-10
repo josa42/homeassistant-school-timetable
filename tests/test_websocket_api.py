@@ -141,26 +141,6 @@ async def test_set_settings_and_seed_a_timetable(
     assert created["lessons"] == []
 
 
-async def test_overlapping_range_is_an_overlap_error(
-    hass: HomeAssistant, hass_storage, hass_ws_client
-) -> None:
-    seed_storage(hass_storage)
-    await setup_integration(hass)
-    client = await hass_ws_client(hass)
-
-    await client.send_json_auto_id(
-        {
-            "type": "school_timetable/timetable/save",
-            "kid_id": KID_ID,
-            "timetable": {"label": "clash", "valid_from": "2026-09-01", "valid_to": "2026-12-01"},
-        }
-    )
-    msg = await client.receive_json()
-
-    assert not msg["success"]
-    assert msg["error"]["code"] == "overlap"
-
-
 async def test_import_ics_content(hass: HomeAssistant, hass_storage, hass_ws_client) -> None:
     seed_storage(hass_storage)
     await setup_integration(hass)

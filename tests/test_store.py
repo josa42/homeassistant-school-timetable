@@ -7,7 +7,7 @@ from datetime import date
 import pytest
 
 from custom_components.school_timetable.ics import ImportedHoliday
-from custom_components.school_timetable.store import NotFound, Overlap, SchoolTimetableStore
+from custom_components.school_timetable.store import NotFound, SchoolTimetableStore
 
 from .common import KID_ID, TIMETABLE_ID, sample_data, seed_storage
 
@@ -74,55 +74,14 @@ async def test_saving_without_an_id_creates_a_timetable(store: SchoolTimetableSt
     assert len(store.data.kid(KID_ID).timetables) == 2
 
 
-async def test_overlapping_timetables_are_refused(store: SchoolTimetableStore) -> None:
-    with pytest.raises(Overlap):
-        await store.async_save_timetable(
-            KID_ID,
-            {
-                "label": "Overlaps 2026/27",
-                "valid_from": "2027-07-09",
-                "valid_to": "2027-12-31",
-                "periods": [{"period": 1, "start": "08:00", "end": "08:45"}],
-                "lessons": [],
-            },
-        )
-    assert len(store.data.kid(KID_ID).timetables) == 1
-
-
-async def test_an_open_ended_timetable_blocks_everything_after_it(
-    store: SchoolTimetableStore,
-) -> None:
-    await store.async_save_timetable(
-        KID_ID,
-        {
-            "label": "2027/28",
-            "valid_from": "2027-08-09",
-            "valid_to": None,
-            "periods": [{"period": 1, "start": "08:00", "end": "08:45"}],
-            "lessons": [],
-        },
-    )
-    with pytest.raises(Overlap):
-        await store.async_save_timetable(
-            KID_ID,
-            {
-                "label": "2028/29",
-                "valid_from": "2028-08-07",
-                "valid_to": None,
-                "periods": [{"period": 1, "start": "08:00", "end": "08:45"}],
-                "lessons": [],
-            },
-        )
-
-
-async def test_touching_ranges_are_allowed(store: SchoolTimetableStore) -> None:
-    """A new year may start the day after the old one ends."""
+async def test_overlapping_ranges_are_allowed(store: SchoolTimetableStore) -> None:
+    """The generator resolves a shared date, so the store does not police it."""
     created = await store.async_save_timetable(
         KID_ID,
         {
-            "label": "2027/28",
-            "valid_from": "2027-07-10",
-            "valid_to": "2028-07-07",
+            "label": "overlaps 2026/27",
+            "valid_from": "2027-01-01",
+            "valid_to": "2027-12-31",
             "periods": [{"period": 1, "start": "08:00", "end": "08:45"}],
             "lessons": [],
         },
@@ -130,17 +89,6 @@ async def test_touching_ranges_are_allowed(store: SchoolTimetableStore) -> None:
 
     assert created.id
     assert len(store.data.kid(KID_ID).timetables) == 2
-
-
-async def test_saving_a_timetable_over_itself_is_not_an_overlap(
-    store: SchoolTimetableStore,
-) -> None:
-    raw = sample_data()["kids"][0]["timetables"][0]
-    raw["label"] = "2026/27 korrigiert"
-
-    await store.async_save_timetable(KID_ID, raw)
-
-    assert store.data.kid(KID_ID).timetables[0].label == "2026/27 korrigiert"
 
 
 async def test_days_off_are_replaced_and_sorted(store: SchoolTimetableStore) -> None:

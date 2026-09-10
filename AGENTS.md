@@ -30,9 +30,8 @@ Decisions that were made deliberately and should not be "simplified" away:
   and why there is no sync code. Do not add a cache without a reason.
 - **A kid holds several timetables, each with a validity range.** The yearly
   rollover and the mid-year Stundenplan change are the same mechanism. Ranges may
-  not overlap; both the panel and `async_save_timetable` refuse it. The generator
-  still falls back to the latest `valid_from`, because a hand-edited file can
-  contain anything.
+  overlap, and the generator picks the latest `valid_from` covering the date.
+  That rule is load-bearing, not a fallback: nothing prevents an overlap.
 - **Lessons carry a `week` field that nothing reads.** It is reserved for
   alternating A/B weeks so adding them later is a UI change, not a data
   migration. Persist it, ignore it.

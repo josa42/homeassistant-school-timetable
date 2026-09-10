@@ -65,7 +65,7 @@ def test_open_ended_timetable_keeps_going() -> None:
 
 
 def test_latest_valid_from_wins_when_ranges_overlap() -> None:
-    """The store refuses overlaps, but a hand-edited file still has to resolve."""
+    """Ranges may overlap, so this is the rule that decides which one applies."""
     raw = sample_data()
     raw["kids"][0]["timetables"].append(
         {

@@ -20,7 +20,7 @@ import voluptuous as vol
 
 from .const import DOMAIN, SOURCE_ICS, SOURCE_MANUAL, WEEK_A, WEEK_B, WEEK_EVERY
 from .ics import MAX_ICS_BYTES, IcsError, parse_holidays
-from .store import NotFound, Overlap, SchoolTimetableStore
+from .store import NotFound, SchoolTimetableStore
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -120,8 +120,6 @@ def _with_store(func):
             await func(hass, connection, msg, store)
         except NotFound as err:
             connection.send_error(msg["id"], "not_found", str(err))
-        except Overlap as err:
-            connection.send_error(msg["id"], "overlap", str(err))
         except (ValueError, vol.Invalid) as err:
             connection.send_error(msg["id"], "invalid_format", str(err))
 

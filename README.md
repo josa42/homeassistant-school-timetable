@@ -78,9 +78,9 @@ from.
 
 ### Timetables and dates
 
-A kid can hold several timetables, each valid for a date range. Ranges may not
-overlap, so exactly one timetable is in force on any given day. That covers both
-the yearly rollover and the mid-year change:
+A kid can hold several timetables, each valid for a date range. Where two ranges
+cover the same day, the one with the later start date wins. That covers both the
+yearly rollover and the mid-year change:
 
 ```
 Anna
