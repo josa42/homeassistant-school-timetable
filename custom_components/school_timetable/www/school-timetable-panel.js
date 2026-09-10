@@ -81,6 +81,16 @@ const STRINGS = {
     "closed.source_ics": "ICS",
     "closed.empty": "Nothing here yet. Add a holiday or import an ICS file.",
     "closed.delete_confirm": "Delete “{name}”?",
+    "closed.selected": "{count} selected",
+    "closed.select_all": "Select all",
+    "closed.bulk_delete": "Delete selected",
+    "closed.bulk_delete_confirm": "Delete {count} entries?",
+    "closed.replace_title": "Search and replace",
+    "closed.replace_hint": "Replaces text in the names of the selected entries.",
+    "closed.search": "Search for",
+    "closed.replace_with": "Replace with",
+    "closed.replaced": "{count} entries changed.",
+    "closed.replace_none": "Nothing matched.",
     "import.section": "Import ICS",
     "import.hint": "Imported holidays become normal rows you can edit. Importing the same file again updates them and leaves manual entries alone.",
     "import.file": "Choose file",
@@ -165,6 +175,16 @@ const STRINGS = {
     "closed.source_ics": "ICS",
     "closed.empty": "Noch nichts da. Eintrag anlegen oder ICS-Datei importieren.",
     "closed.delete_confirm": "„{name}“ löschen?",
+    "closed.selected": "{count} ausgewählt",
+    "closed.select_all": "Alle auswählen",
+    "closed.bulk_delete": "Auswahl löschen",
+    "closed.bulk_delete_confirm": "{count} Einträge löschen?",
+    "closed.replace_title": "Suchen und ersetzen",
+    "closed.replace_hint": "Ersetzt Text in den Namen der ausgewählten Einträge.",
+    "closed.search": "Suchen nach",
+    "closed.replace_with": "Ersetzen durch",
+    "closed.replaced": "{count} Einträge geändert.",
+    "closed.replace_none": "Keine Treffer.",
     "import.section": "ICS importieren",
     "import.hint": "Importierte Einträge werden normale, bearbeitbare Zeilen. Ein erneuter Import derselben Datei aktualisiert sie und lässt manuelle Einträge unberührt.",
     "import.file": "Datei wählen",
@@ -476,6 +496,12 @@ const STYLE = `
     background: var(--secondary-background-color, #e5e5e5);
     color: var(--primary-text-color, #212121);
   }
+  .bulk {
+    background: var(--secondary-background-color, #e5e5e5);
+    border-radius: 8px;
+    padding: 8px 12px;
+    margin-bottom: 12px;
+  }
   .badge {
     font-size: 11px;
     border-radius: 999px;
@@ -555,6 +581,7 @@ class SchoolTimetablePanel extends HTMLElement {
     this._draft = null;
     this._dirty = false;
     this._showWeekend = false;
+    this._selected = new Set();
     this._status = null;
     this._subscribing = false;
     this._unsub = null;
@@ -1584,10 +1611,32 @@ class SchoolTimetablePanel extends HTMLElement {
 
   _renderClosedView() {
     const entries = this._data.closed_days;
+    // Entries can disappear under a stale selection, for instance after an import.
+    const ids = new Set(entries.map((entry) => entry.id));
+    for (const id of [...this._selected]) {
+      if (!ids.has(id)) this._selected.delete(id);
+    }
+
+    const toggle = (id, checked) => {
+      if (checked) this._selected.add(id);
+      else this._selected.delete(id);
+      this._render();
+    };
+
     const rows = entries.map((entry) =>
       h(
         "tr",
         {},
+        h(
+          "td",
+          {},
+          h("input", {
+            type: "checkbox",
+            checked: this._selected.has(entry.id),
+            "aria-label": entry.name,
+            onChange: (event) => toggle(entry.id, event.target.checked),
+          })
+        ),
         h("td", { class: "grow", text: entry.name }),
         h("td", { text: fmtDate(this._hass, entry.start) }),
         h("td", { text: fmtDate(this._hass, entry.end) }),
@@ -1620,6 +1669,7 @@ class SchoolTimetablePanel extends HTMLElement {
       )
     );
 
+    const allSelected = entries.length > 0 && this._selected.size === entries.length;
     const table = rows.length
       ? h(
           "div",
@@ -1633,6 +1683,21 @@ class SchoolTimetablePanel extends HTMLElement {
               h(
                 "tr",
                 {},
+                h(
+                  "th",
+                  {},
+                  h("input", {
+                    type: "checkbox",
+                    checked: allSelected,
+                    "aria-label": _t(this._hass, "closed.select_all"),
+                    onChange: (event) => {
+                      this._selected = new Set(
+                        event.target.checked ? entries.map((entry) => entry.id) : []
+                      );
+                      this._render();
+                    },
+                  })
+                ),
                 h("th", { text: _t(this._hass, "common.name") }),
                 h("th", { text: _t(this._hass, "closed.start") }),
                 h("th", { text: _t(this._hass, "closed.end") }),
@@ -1645,11 +1710,36 @@ class SchoolTimetablePanel extends HTMLElement {
         )
       : h("p", { class: "empty", text: _t(this._hass, "closed.empty") });
 
+    const selection = this._selected.size
+      ? h(
+          "div",
+          { class: "row spread bulk" },
+          h("span", {
+            class: "status",
+            text: _t(this._hass, "closed.selected", { count: this._selected.size }),
+          }),
+          h(
+            "div",
+            { class: "row" },
+            h("button", {
+              text: _t(this._hass, "closed.replace_title"),
+              onClick: () => this._replaceInSelected(),
+            }),
+            h("button", {
+              class: "danger",
+              text: _t(this._hass, "closed.bulk_delete"),
+              onClick: () => this._deleteSelected(),
+            })
+          )
+        )
+      : null;
+
     const list = h(
       "div",
       { class: "card" },
       h("h2", { text: _t(this._hass, "closed.section") }),
       h("p", { class: "hint", text: _t(this._hass, "closed.hint") }),
+      selection,
       table,
       h(
         "div",
@@ -1750,6 +1840,44 @@ class SchoolTimetablePanel extends HTMLElement {
     );
     if (!entry) next.push({ ...values, source: "manual" });
     await this._saveClosedDays(next);
+  }
+
+  _selectedEntries() {
+    return this._data.closed_days.filter((entry) => this._selected.has(entry.id));
+  }
+
+  async _deleteSelected() {
+    const count = this._selected.size;
+    if (!(await this._confirm(_t(this._hass, "closed.bulk_delete_confirm", { count })))) return;
+    await this._saveClosedDays(
+      this._data.closed_days.filter((entry) => !this._selected.has(entry.id))
+    );
+    this._selected = new Set();
+  }
+
+  async _replaceInSelected() {
+    const values = await this._formDialog({
+      title: _t(this._hass, "closed.replace_title"),
+      description: _t(this._hass, "closed.replace_hint"),
+      fields: [
+        { key: "search", label: _t(this._hass, "closed.search"), required: true },
+        { key: "replace", label: _t(this._hass, "closed.replace_with") },
+      ],
+    });
+    if (!values) return;
+
+    let changed = 0;
+    const next = this._data.closed_days.map((entry) => {
+      if (!this._selected.has(entry.id) || !entry.name.includes(values.search)) return entry;
+      changed += 1;
+      return { ...entry, name: entry.name.split(values.search).join(values.replace) };
+    });
+    if (!changed) {
+      this._setStatus(_t(this._hass, "closed.replace_none"));
+      return;
+    }
+    await this._saveClosedDays(next);
+    this._setStatus(_t(this._hass, "closed.replaced", { count: changed }));
   }
 
   async _deleteClosedDay(entry) {

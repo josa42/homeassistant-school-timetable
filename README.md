@@ -91,6 +91,10 @@ The holiday list is shared by every kid, since Ferien and Feiertage are set per
 Bundesland. Anything that affects one kid only, such as a sick day or their
 school's Pädagogischer Tag, goes in that kid's **freie Tage** instead.
 
+Rows can be ticked off in bulk to delete them together, or to run a search and
+replace across their names, which is the quick way to fix up a batch of imported
+entries.
+
 Importing an ICS file writes normal, editable rows. Importing the same feed
 again matches on the iCal UID and updates those rows in place; rows you added by
 hand are never touched. Recurring events are expanded, from a year back to three
