@@ -16,6 +16,8 @@ const PANEL_VERSION = "1.0.0";
 const STRINGS = {
   en: {
     "nav.closed": "Holidays",
+    "tab.timetable": "Timetable",
+    "tab.days_off": "Days off",
     "nav.settings": "Settings",
     "settings.default_times": "Default lesson times",
     "settings.hint": "The times a new timetable starts from. Changing them leaves existing timetables alone.",
@@ -108,6 +110,8 @@ const STRINGS = {
   },
   de: {
     "nav.closed": "Ferien",
+    "tab.timetable": "Stundenplan",
+    "tab.days_off": "Freie Tage",
     "nav.settings": "Einstellungen",
     "settings.default_times": "Standard-Stundenzeiten",
     "settings.hint": "Die Zeiten, mit denen ein neuer Stundenplan startet. Bestehende Stundenpläne bleiben unverändert.",
@@ -571,6 +575,30 @@ const STYLE = `
     background: var(--secondary-background-color, #e5e5e5);
     color: var(--primary-text-color, #212121);
   }
+  .toggle-row { justify-content: flex-end; margin-bottom: var(--st-gap); }
+  .toggle { display: inline-flex; }
+  .toggle button {
+    border: 0;
+    border-radius: 0;
+    height: 40px;
+    padding: 0 20px;
+    font-size: 14px;
+    background: var(--ha-color-fill-primary-normal-resting,
+      rgba(var(--rgb-primary-color, 3, 169, 244), 0.12));
+    color: var(--ha-color-on-primary-normal, var(--primary-color, #03a9f4));
+  }
+  .toggle button:first-child {
+    border-start-start-radius: 999px;
+    border-end-start-radius: 999px;
+  }
+  .toggle button:last-child {
+    border-start-end-radius: 999px;
+    border-end-end-radius: 999px;
+  }
+  .toggle button[aria-pressed="true"] {
+    background: var(--ha-color-fill-primary-loud-resting, var(--primary-color, #03a9f4));
+    color: var(--ha-color-on-primary-loud, var(--text-primary-color, #fff));
+  }
   .bulk {
     background: var(--secondary-background-color, #e5e5e5);
     border-radius: 8px;
@@ -656,6 +684,7 @@ class SchoolTimetablePanel extends HTMLElement {
     this._dirty = false;
     this._showWeekend = false;
     this._selected = new Set();
+    this._kidTab = "timetable";
     this._status = null;
     this._subscribing = false;
     this._unsub = null;
@@ -1135,7 +1164,40 @@ class SchoolTimetablePanel extends HTMLElement {
         h("div", { class: "card" }, h("p", { class: "empty", text: _t(this._hass, "kids.empty") })),
       ];
     }
-    return [this._renderTimetableCard(kid), this._renderDaysOffCard(kid)];
+    const toggle = h(
+      "div",
+      { class: "row toggle-row" },
+      this._renderToggle(
+        this._kidTab,
+        [
+          { value: "timetable", label: _t(this._hass, "tab.timetable") },
+          { value: "days_off", label: _t(this._hass, "tab.days_off") },
+        ],
+        (value) => {
+          this._kidTab = value;
+          this._render();
+        }
+      )
+    );
+    return [
+      toggle,
+      this._kidTab === "days_off" ? this._renderDaysOffCard(kid) : this._renderTimetableCard(kid),
+    ];
+  }
+
+  _renderToggle(active, options, onChange) {
+    return h(
+      "div",
+      { class: "toggle", role: "group" },
+      ...options.map((option) =>
+        h("button", {
+          class: "toggle-item",
+          "aria-pressed": active === option.value ? "true" : "false",
+          text: option.label,
+          onClick: () => onChange(option.value),
+        })
+      )
+    );
   }
 
   async _addKid() {
@@ -1927,6 +1989,7 @@ class SchoolTimetablePanel extends HTMLElement {
       this._data.closed_days.filter((entry) => !this._selected.has(entry.id))
     );
     this._selected = new Set();
+    this._kidTab = "timetable";
   }
 
   async _replaceInSelected() {

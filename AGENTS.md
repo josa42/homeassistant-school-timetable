@@ -100,6 +100,13 @@ panel name over the pane and nothing else, because that panel puts the selected
 list's name on the card rather than in the bar. The kid's name is the timetable
 card's heading for the same reason.
 
+The toggle above a kid's view is a hand-built `ha-button-toggle-group`: that
+element is `wa-button-group` plus `ha-button` from a lazily loaded chunk, so it
+gets the same treatment as the icons. The colours come from the tokens it
+resolves to, `--ha-color-fill-primary-loud-resting` on `--ha-color-on-primary-loud`
+for the active segment and the matching `-normal-` pair for the rest, so a theme
+still drives it.
+
 Icons are inline SVG rather than `ha-icon`: that element is defined in a lazily
 loaded chunk, and nothing else in a bare panel pulls it in, so it may never
 upgrade. The path data in `MDI` was copied out of the frontend bundle. Verify

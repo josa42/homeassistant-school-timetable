@@ -62,6 +62,9 @@ Open **Stundenplan** in the sidebar.
 3. **Fill in the subjects.** Click a row's times to change, add or remove a
    period. Save.
 
+A kid's page has two views, switched with the toggle in the top right: the
+timetable, and that kid's days off.
+
 Adding, renaming and deleting a kid or a timetable, and adding a day off, all
 live in the menu in the top right. A timetable's label and date range are edited
 there too, under *Stundenplan bearbeiten*.
