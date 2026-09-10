@@ -279,14 +279,24 @@ The one surface that cannot follow the settings is the event description built
 in `schedule.py`: it stays on 24-hour `HH:MM`, because the server cannot see a
 per-user frontend setting.
 
-The timetable editor is the one place with local state. It keeps a draft and an
-explicit Save button, so typing in the grid does not trigger a re-render and
-lose focus. `_markDirty()` deliberately does not re-render. Everything else
-(kids, days off, holidays) writes straight through a dialog.
+The week is rendered like a calendar: `_renderWeek` puts weekdays across and
+periods down, and every change goes through a dialog that saves on its own. No
+view holds unsaved state, which is why there is no draft and no Save button.
 
-Grid cells are keyed by `weekday:periodIndex`, the row index rather than the
-period number. That is what makes renumbering a period and deleting a row in the
-middle work; `_removePeriod` shifts the keys below the deleted row.
+A lesson carries `span`, the number of consecutive periods it covers, so a
+Doppelstunde is one lesson with span 2 rather than two lessons. Its cell gets a
+`rowspan` and the slots underneath are skipped; `_editLesson` offers only the
+durations that fit before the next lesson or the end of the day, and the
+generator ends the lesson at the last period it covers.
+
+Periods are numbered by their place in the day, so editing a time can renumber
+them. `_savePeriods` re-sorts, renumbers, and carries each lesson to the number
+its period ended up with. A lesson whose period was deleted goes with it.
+
+Subject colours come from `subjectColor`, which hashes the trimmed lowercase
+name into a slice of Home Assistant's palette, so the same class is the same
+colour in every timetable. Different names can collide; the palette holds
+twelve.
 
 There is no JS test tooling in the repo. To exercise the panel without a
 browser, install `jsdom` in a scratch directory, stub `window`, `document`,
