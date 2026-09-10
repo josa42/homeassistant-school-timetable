@@ -201,6 +201,27 @@ body is the default slot, and every button goes inside one element slotted as
 A selector is a controlled component: it reports `value-changed` and expects the
 value handed back, so `_dialogField` keeps the value itself.
 
+`ha-select` is the same kind of controlled component but announces a pick as
+**`selected`** (`event.detail.value`), not `value-changed`, and never writes its
+own `value`. A handler that listens only for `value-changed`/`change` leaves it
+inert under a real click while looking correct to a synthetic event -- which is
+exactly how it shipped broken once. Verify inputs with a real mouse click.
+
+`ha-select` is also fixed at 56px tall. It has no `size` property, and the
+height comes from `--md-list-item-one-line-container-height` declared **on** an
+element inside its shadow tree, so setting that property on the host does not
+reach it -- inheritance never beats a declaration on the element itself. For a
+picker that has to match a 40px control, do what the todo panel does: an
+`ha-button` with a chevron in the `end` slot, in `ha-dropdown`'s trigger slot,
+with `--ha-button-height` set (`_renderTimetablePicker`, `.timetable-picker`).
+
+When probing the panel from Chrome, scope queries: the sidebar rows are
+`ha-dropdown-item`s too (`_renderNav` builds them through `_dropdownItem`), so a
+document-wide search for dropdown items finds nav rows alongside the ones that
+belong to the menu under test. Walk from the trigger instead
+(`trigger.closest("ha-dropdown")`). Getting this wrong produces a green run that
+proves nothing -- a click on "Lisa" that reads as a timetable switch.
+
 ### Using Home Assistant's controls
 
 Every control goes through a factory: `_button`, `_iconButton`, `_textField`,
@@ -224,9 +245,10 @@ shadow-DOM components and the event's target is the inner control.
 ### The panel cannot rely on `ha-*` elements
 
 A custom panel is loaded before Home Assistant's lazily-bundled frontend
-elements are guaranteed to be defined. The panel uses plain DOM styled with HA
-theme variables, and its own dialogs, rather than `ha-dialog` or `ha-textfield`.
-The sidebar toggle is a plain button that dispatches `hass-toggle-menu`.
+elements are guaranteed to be defined, so every control goes through a factory
+that builds the `ha-*` element once it exists and a plain-DOM equivalent until
+then (see `_watchHaElements`). The panel's own layout stays plain DOM styled
+with HA theme variables.
 
 ### Panel registration and reloads
 
@@ -283,20 +305,36 @@ The week is rendered like a calendar: `_renderWeek` puts weekdays across and
 periods down, and every change goes through a dialog that saves on its own. No
 view holds unsaved state, which is why there is no draft and no Save button.
 
+The card holds only the week. The timetable picker sits above it in the view's
+header row, at the left across from the view toggle, and there is no heading
+repeating the kid's name -- the sidebar already shows which kid is selected.
+Anything else that describes the whole timetable, the bell times and whether
+the weekend is shown, is edited in the timetable dialog rather than in the grid.
+
+Everything dated is listed newest first (`byNewest`) with finished entries
+dimmed rather than hidden (`isPast`, `.past`): last year's holidays still
+explain last year's calendar. Kids are sorted by name with `localeCompare` in
+the user's language.
+
 A lesson carries `span`, the number of consecutive periods it covers, so a
 Doppelstunde is one lesson with span 2 rather than two lessons. Its cell gets a
 `rowspan` and the slots underneath are skipped; `_editLesson` offers only the
 durations that fit before the next lesson or the end of the day, and the
-generator ends the lesson at the last period it covers.
+generator ends the lesson at the last period it covers. The duration field is
+always in the dialog, disabled when only one duration fits, so the dialog keeps
+its shape from slot to slot.
 
 Periods are numbered by their place in the day, so editing a time can renumber
 them. `_savePeriods` re-sorts, renumbers, and carries each lesson to the number
 its period ended up with. A lesson whose period was deleted goes with it.
 
-Subject colours come from `subjectColor`, which hashes the trimmed lowercase
-name into a slice of Home Assistant's palette, so the same class is the same
-colour in every timetable. Different names can collide; the palette holds
-twelve.
+Subject colours are generated rather than picked from a list: `subjectBucket`
+hashes the trimmed lowercase name into one of 72 buckets (24 hues x 3 tones)
+and `bucketColor` turns that into a colour, so the same class is the same
+colour in every timetable. `subjectColors` then walks the week and steps any
+two subjects that landed in the same bucket apart, so a collision costs a
+neighbouring hue instead of two classes looking alike. Cells are tinted with
+`color-mix`, not filled, so the grid reads as a calendar.
 
 There is no JS test tooling in the repo. To exercise the panel without a
 browser, install `jsdom` in a scratch directory, stub `window`, `document`,
