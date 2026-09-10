@@ -156,8 +156,19 @@ sync. Mutations also return the document, which is what the panel renders from.
 
 Dates and times in the panel go through `fmtDate` and `fmtTime`, which read
 each user's `hass.locale` (`date_format`, `time_format`) the way Home Assistant's
-own frontend does. The event description built in `schedule.py` stays on 24-hour
-`HH:MM`, because those are per-user frontend settings that the server cannot see.
+own frontend does. The values are the frontend's own enums: `language`, `system`,
+`DMY`, `MDY`, `YMD`, and `12` / `24`.
+
+Home Assistant pushes a fresh `hass` object on every state change, so the panel
+cannot repaint on all of them without throwing away whatever is being typed. The
+`hass` setter compares `localeSignature` and repaints only when the language or
+a format actually changed.
+
+Two surfaces do not follow those settings and cannot: the event description
+built in `schedule.py` stays on 24-hour `HH:MM`, because the server cannot see a
+per-user frontend setting, and the native `<input type="date">` / `type="time"`
+in dialogs follow the browser's locale. Replacing those would mean adopting
+`ha-date-input` and `ha-time-input`, which are lazily loaded like the rest.
 
 The timetable editor is the one place with local state. It keeps a draft and an
 explicit Save button, so typing in the grid does not trigger a re-render and

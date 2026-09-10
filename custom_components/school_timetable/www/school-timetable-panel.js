@@ -309,6 +309,16 @@ function _cachedFormat(key, build) {
   return formatter;
 }
 
+function localeSignature(hass) {
+  const locale = (hass && hass.locale) || {};
+  return [
+    hass && hass.language,
+    locale.language,
+    locale.date_format,
+    locale.time_format,
+  ].join("|");
+}
+
 function _formatLanguage(hass, setting) {
   if (setting === "system") return undefined;
   const locale = (hass && hass.locale) || {};
@@ -763,10 +773,18 @@ class SchoolTimetablePanel extends HTMLElement {
   }
 
   set hass(hass) {
-    const first = !this._hass;
+    const previous = this._hass;
     this._hass = hass;
-    if (first) {
+    if (!previous) {
       this._subscribe();
+      this._render();
+      return;
+    }
+    // Home Assistant pushes a new hass object on every state change, far too
+    // often to repaint on. Only the parts this panel renders from matter, so
+    // repaint when the user changes language or their date/time format.
+    if (localeSignature(previous) !== localeSignature(hass)) {
+      FORMATTERS.clear();
       this._render();
     }
   }
