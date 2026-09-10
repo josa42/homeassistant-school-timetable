@@ -67,6 +67,29 @@ the test harness reports as a lingering timer. Go through
 `entity.platform.async_remove_entity(entity_id)` first, then remove the registry
 entry. See `_async_remove_entity` in `calendar.py`.
 
+### A custom panel gets no styles from Home Assistant
+
+`ha-panel-custom` renders a module panel (`embed_iframe: false`) by creating the
+element and appending it, with no CSS of its own. Nothing above it has a
+definite height, so `height: 100%` collapses to the content height, which is why
+the sidebar used to stop halfway down the page. The panel claims the viewport
+itself with `height: 100vh; height: 100dvh`, the same pair Home Assistant uses
+for the iframe variant of a custom panel.
+
+The two-pane layout mirrors `ha-two-pane-top-app-bar-fixed`, the component the
+todo panel uses: `--sidepane-width` of 250px, the pane as a flex column with
+`border-inline-end`, its list scrolling under a bordered footer, and the top bar
+split so the divider between pane and content runs to the top of the window.
+Grep the frontend bundle in `hass_frontend/frontend_latest/` for `.pane{` to
+read the original.
+
+To check the layout without Home Assistant, drive the panel in Chrome through
+`puppeteer-core` (`executablePath` pointing at the installed Chrome) on a bare
+page. Because the real parent applies no styles, a bare page is a faithful
+stand-in, and `getBoundingClientRect()` on `.nav` and `.view` will tell you
+whether they reach the bottom of the viewport. jsdom cannot: it has no layout
+engine.
+
 ### The panel cannot rely on `ha-*` elements
 
 A custom panel is loaded before Home Assistant's lazily-bundled frontend

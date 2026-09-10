@@ -336,25 +336,57 @@ function todayIso() {
 }
 
 const STYLE = `
+  /* ha-panel-custom appends a module panel with no styles of its own, so the
+     panel has to claim the viewport itself. This is what Home Assistant uses
+     for the iframe variant. */
   :host {
-    display: block;
-    height: 100%;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh;
+    box-sizing: border-box;
     background: var(--primary-background-color, #f5f5f5);
     color: var(--primary-text-color, #212121);
     font-family: var(--paper-font-body1_-_font-family, Roboto, sans-serif);
     --st-gap: 16px;
+    --sidepane-width: 250px;
   }
   .toolbar {
     display: flex;
-    align-items: center;
-    gap: 8px;
-    height: var(--header-height, 56px);
-    padding: 0 12px;
+    align-items: stretch;
+    flex: 0 0 var(--header-height, 56px);
     background: var(--app-header-background-color, var(--primary-color, #03a9f4));
     color: var(--app-header-text-color, #fff);
     font-size: 20px;
     font-weight: 400;
     box-sizing: border-box;
+  }
+  /* The bar is split over the pane and the content, so the divider between them
+     runs all the way to the top, as it does in the todo and calendar panels. */
+  .toolbar-pane {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 4px 0 12px;
+    box-sizing: border-box;
+    flex: 0 0 var(--sidepane-width, 250px);
+    width: var(--sidepane-width, 250px);
+    border-right: 1px solid rgba(255, 255, 255, 0.12);
+    border-inline-end: 1px solid rgba(255, 255, 255, 0.12);
+    border-inline-start: initial;
+  }
+  .toolbar-main {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+    padding: 0 8px 0 16px;
+  }
+  .app-title, .view-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .menu {
     border: 0;
@@ -366,18 +398,25 @@ const STYLE = `
     line-height: 0;
   }
   .menu:hover { background: rgba(255, 255, 255, 0.12); }
-  .content { height: calc(100% - var(--header-height, 56px)); }
-  .layout { display: flex; align-items: stretch; height: 100%; }
+  .content { flex: 1; min-height: 0; }
+  /* Mirrors ha-two-pane-top-app-bar-fixed. */
+  .layout { display: flex; overflow: hidden; height: 100%; }
   .nav {
-    flex: 0 0 220px;
+    box-sizing: border-box;
+    flex: 0 0 var(--sidepane-width, 250px);
+    width: var(--sidepane-width, 250px);
     display: flex;
     flex-direction: column;
+    position: relative;
     background: var(--card-background-color, #fff);
     border-right: 1px solid var(--divider-color, #e0e0e0);
+    border-inline-end: 1px solid var(--divider-color, #e0e0e0);
+    border-inline-start: initial;
   }
-  .nav-kids { flex: 1; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 2px; }
+  .nav-kids { flex: 1; overflow: auto; padding: 8px; display: flex; flex-direction: column; gap: 2px; }
   .nav-bottom {
     padding: 8px;
+    padding-bottom: 8px;
     display: flex;
     flex-direction: column;
     gap: 2px;
@@ -397,20 +436,29 @@ const STYLE = `
     border-radius: 8px;
     padding: 10px 12px;
     font-size: 14px;
+    color: inherit;
+    flex: 0 0 auto;
   }
   .nav-item:hover { background: var(--secondary-background-color, #e5e5e5); }
   .nav-item[aria-current="page"] {
     background: var(--primary-color, #03a9f4);
     color: var(--text-primary-color, #fff);
   }
-  .view { flex: 1; min-width: 0; overflow-y: auto; padding: var(--st-gap); }
-  .view-inner { max-width: 1100px; margin: 0 auto; }
+  .view { flex: 1; min-width: 0; height: 100%; overflow: auto; }
+  .view-inner { max-width: 1100px; margin: 0 auto; padding: var(--st-gap); }
   @media (max-width: 700px) {
-    .layout { flex-direction: column; height: auto; }
-    .nav { flex: none; flex-direction: row; border-right: 0;
-      border-bottom: 1px solid var(--divider-color, #e0e0e0); }
+    .toolbar-pane { flex: 0 0 auto; width: auto; border-inline-end: 0; }
+    .layout { flex-direction: column; overflow: auto; }
+    .nav {
+      flex: 0 0 auto;
+      width: auto;
+      flex-direction: row;
+      border-inline-end: 0;
+      border-bottom: 1px solid var(--divider-color, #e0e0e0);
+    }
     .nav-kids, .nav-bottom { flex-direction: row; overflow-x: auto; border-top: 0; }
     .nav-label { display: none; }
+    .view { height: auto; overflow: visible; }
   }
   .card {
     background: var(--card-background-color, #fff);
@@ -536,7 +584,6 @@ const STYLE = `
   }
   .menu-item:hover { background: var(--secondary-background-color, #e5e5e5); }
   .menu-item.danger { color: var(--error-color, #db4437); }
-  .view-title { font-size: 22px; font-weight: 400; margin: 0 0 var(--st-gap); }
   .backdrop {
     position: fixed;
     inset: 0;
@@ -810,14 +857,14 @@ class SchoolTimetablePanel extends HTMLElement {
     overflow.innerHTML = SVG_OVERFLOW;
     this._main = h("div", { class: "content" });
     this._dialogs = h("div");
+    this._viewTitle = h("div", { class: "grow view-title" });
     this.shadowRoot.replaceChildren(
       h("style", { text: STYLE }),
       h(
         "div",
         { class: "toolbar" },
-        menu,
-        h("div", { class: "grow", text: this._title() }),
-        overflow
+        h("div", { class: "toolbar-pane" }, menu, h("div", { class: "app-title", text: this._title() })),
+        h("div", { class: "toolbar-main" }, this._viewTitle, overflow)
       ),
       this._main,
       this._dialogs
@@ -915,6 +962,7 @@ class SchoolTimetablePanel extends HTMLElement {
       return;
     }
 
+    this._viewTitle.textContent = this._viewName();
     this._main.replaceChildren(
       h(
         "div",
@@ -934,6 +982,13 @@ class SchoolTimetablePanel extends HTMLElement {
         )
       )
     );
+  }
+
+  _viewName() {
+    if (this._view === "closed") return _t(this._hass, "nav.closed");
+    if (this._view === "settings") return _t(this._hass, "nav.settings");
+    const kid = this._kid();
+    return kid ? kid.name : "";
   }
 
   _renderView() {
@@ -1057,11 +1112,7 @@ class SchoolTimetablePanel extends HTMLElement {
         h("div", { class: "card" }, h("p", { class: "empty", text: _t(this._hass, "kids.empty") })),
       ];
     }
-    return [
-      h("h1", { class: "view-title", text: kid.name }),
-      this._renderTimetableCard(kid),
-      this._renderDaysOffCard(kid),
-    ];
+    return [this._renderTimetableCard(kid), this._renderDaysOffCard(kid)];
   }
 
   async _addKid() {
