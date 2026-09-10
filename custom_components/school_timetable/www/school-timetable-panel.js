@@ -230,15 +230,78 @@ function h(tag, props, ...children) {
   return node;
 }
 
+// Home Assistant keeps each user's date and time preferences in hass.locale.
+// "language" follows their chosen language, "system" follows the browser, and
+// the rest are explicit patterns. Formatters are cached because the lesson grid
+// asks for a time on every row.
+const FORMATTERS = new Map();
+
+function _cachedFormat(key, build) {
+  let formatter = FORMATTERS.get(key);
+  if (!formatter) {
+    formatter = build();
+    FORMATTERS.set(key, formatter);
+  }
+  return formatter;
+}
+
+function _formatLanguage(hass, setting) {
+  if (setting === "system") return undefined;
+  const locale = (hass && hass.locale) || {};
+  return locale.language || (hass && hass.language) || "en";
+}
+
+function _usesAmPm(hass) {
+  const setting = ((hass && hass.locale) || {}).time_format;
+  if (setting === "12") return true;
+  if (setting === "24") return false;
+  const language = _formatLanguage(hass, setting);
+  return (
+    _cachedFormat(`probe:${language}`, () =>
+      new Intl.DateTimeFormat(language, { hour: "numeric" })
+    ).resolvedOptions().hour12 === true
+  );
+}
+
 function fmtDate(hass, iso) {
   if (!iso) return "";
   const parts = iso.split("-").map(Number);
   const date = new Date(parts[0], parts[1] - 1, parts[2]);
-  return new Intl.DateTimeFormat((hass && hass.language) || "en", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
+  const setting = ((hass && hass.locale) || {}).date_format;
+  const language = _formatLanguage(hass, setting);
+  const numeric = { day: "2-digit", month: "2-digit", year: "numeric" };
+  return _cachedFormat(`date:${setting}:${language}`, () => {
+    switch (setting) {
+      case "DMY":
+        return new Intl.DateTimeFormat("en-GB", numeric);
+      case "MDY":
+        return new Intl.DateTimeFormat("en-US", numeric);
+      case "YMD":
+        return new Intl.DateTimeFormat("sv-SE", numeric);
+      default:
+        return new Intl.DateTimeFormat(language, {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+        });
+    }
   }).format(date);
+}
+
+function fmtTime(hass, value) {
+  if (!value) return "";
+  const [hours, minutes] = value.split(":").map(Number);
+  const setting = ((hass && hass.locale) || {}).time_format;
+  const language = _formatLanguage(hass, setting);
+  const amPm = _usesAmPm(hass);
+  return _cachedFormat(`time:${language}:${amPm}`, () =>
+    new Intl.DateTimeFormat(
+      language,
+      amPm
+        ? { hour: "numeric", minute: "2-digit", hour12: true }
+        : { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }
+    )
+  ).format(new Date(2000, 0, 1, hours, minutes));
 }
 
 function todayIso() {
@@ -933,7 +996,10 @@ class SchoolTimetablePanel extends HTMLElement {
                     h("button", {
                       class: "link",
                       title: _t(this._hass, "timetable.edit_period"),
-                      text: `${period.start} – ${period.end}`,
+                      text: `${fmtTime(this._hass, period.start)} – ${fmtTime(
+                        this._hass,
+                        period.end
+                      )}`,
                       onClick: () => this._editPeriod(index),
                     })
                   ),

@@ -91,6 +91,11 @@ State comes from one websocket subscription (`school_timetable/subscribe`) that
 pushes the whole document after every change, so a second open panel stays in
 sync. Mutations also return the document, which is what the panel renders from.
 
+Dates and times in the panel go through `fmtDate` and `fmtTime`, which read
+each user's `hass.locale` (`date_format`, `time_format`) the way Home Assistant's
+own frontend does. The event description built in `schedule.py` stays on 24-hour
+`HH:MM`, because those are per-user frontend settings that the server cannot see.
+
 The timetable editor is the one place with local state. It keeps a draft and an
 explicit Save button, so typing in the grid does not trigger a re-render and
 lose focus. `_markDirty()` deliberately does not re-render. Everything else
