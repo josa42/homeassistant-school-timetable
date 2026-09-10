@@ -100,6 +100,13 @@ panel name over the pane and nothing else, because that panel puts the selected
 list's name on the card rather than in the bar. The kid's name is the timetable
 card's heading for the same reason.
 
+The narrow-screen picker copies the todo panel's list picker: an `ha-button`
+with `appearance="plain"` in `ha-dropdown`'s trigger slot, the label in a `div`
+and the chevron in the button's `end` slot. That appearance takes its colour
+from `--wa-color-on-normal`, which is set to the header text colour so it reads
+on the app bar. `ha-button` exposes no CSS parts, so custom properties are the
+only way in.
+
 The sidebar toggle in the top left only appears below `NARROW_QUERY`. On a wide
 screen Home Assistant's sidebar is already on display, so the button would only
 collapse it; on a narrow one that sidebar is hidden and this is the only way

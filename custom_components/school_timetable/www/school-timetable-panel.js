@@ -447,6 +447,18 @@ const STYLE = `
     max-width: 60vw;
   }
   .view-picker:hover { background: rgba(255, 255, 255, 0.12); }
+  /* ha-button's plain appearance takes its colour from this one token. */
+  ha-button.view-picker {
+    --wa-color-on-normal: var(--app-header-text-color, #fff);
+    --ha-button-height: 40px;
+    --ha-button-label-overflow: hidden;
+    max-width: 60vw;
+  }
+  ha-button.view-picker div {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   .view-picker span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .view-picker svg { width: 20px; height: 20px; flex: 0 0 auto; }
   .app-title {
@@ -771,6 +783,7 @@ class SchoolTimetablePanel extends HTMLElement {
     this._haInputs = false;
     this._haSelect = false;
     this._haCheckbox = false;
+    this._haButton = false;
     this._status = null;
     this._subscribing = false;
     this._unsub = null;
@@ -1151,6 +1164,7 @@ class SchoolTimetablePanel extends HTMLElement {
         customElements.whenDefined("ha-date-input"),
         customElements.whenDefined("ha-time-input"),
         customElements.whenDefined("ha-input"),
+        customElements.whenDefined("ha-button"),
         new Promise((resolve) => setTimeout(resolve, MENU_UPGRADE_TIMEOUT)),
       ]);
     }
@@ -1165,6 +1179,7 @@ class SchoolTimetablePanel extends HTMLElement {
     this._haInputs = !!customElements.get("ha-input");
     this._haSelect = !!customElements.get("ha-select");
     this._haCheckbox = !!customElements.get("ha-checkbox");
+    this._haButton = !!customElements.get("ha-button");
 
     if (!customElements.get("ha-dropdown-item")) {
       if (this._nativePickers || this._haInputs) this._render();
@@ -1490,13 +1505,25 @@ class SchoolTimetablePanel extends HTMLElement {
   }
 
   // Narrow screens lose the pane and pick the view from the toolbar instead.
+  // Built like the todo panel's list picker: an ha-button in the dropdown's
+  // trigger slot, with the chevron in the button's end slot.
   _renderViewPicker() {
-    const trigger = h(
-      "button",
-      { class: "view-picker" },
-      h("span", { text: this._viewLabel() }),
-      icon("chevron")
-    );
+    const chevron = icon("chevron");
+    chevron.setAttribute("slot", "end");
+    let trigger;
+    if (this._haButton) {
+      trigger = document.createElement("ha-button");
+      trigger.setAttribute("appearance", "plain");
+      trigger.className = "view-picker";
+      trigger.append(h("div", { text: this._viewLabel() }), chevron);
+    } else {
+      trigger = h(
+        "button",
+        { class: "view-picker" },
+        h("span", { text: this._viewLabel() }),
+        chevron
+      );
+    }
     return this._dotMenu(trigger, this._navItems());
   }
 
@@ -2470,6 +2497,7 @@ class SchoolTimetablePanel extends HTMLElement {
     this._haInputs = false;
     this._haSelect = false;
     this._haCheckbox = false;
+    this._haButton = false;
   }
 
   async _replaceInSelected() {
