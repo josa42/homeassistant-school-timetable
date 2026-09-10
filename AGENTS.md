@@ -174,13 +174,45 @@ upgrade. The path data in `MDI` was copied out of the frontend bundle. Verify
 any new one the same way (`grep -rF "<path data>" hass_frontend/frontend_latest/`)
 instead of typing it from memory.
 
+### What the panel actually gets, verified in the browser
+
+Available to a panel once the chunks land: `ha-button`, `ha-icon-button`,
+`ha-menu-button`, `ha-list`, `ha-dropdown`, `ha-dropdown-item`, `wa-divider`,
+`ha-input`, `ha-select`, `ha-checkbox`, `ha-dialog`, `ha-selector`, `ha-card`,
+`ha-alert`, `ha-svg-icon`. Not available, because nothing on a panel page pulls
+their chunk: `ha-button-toggle-group`, `ha-date-input`, `ha-time-input`,
+`ha-fab`, `ha-file-upload`, `wa-button-group`, `ha-two-pane-top-app-bar-fixed`.
+
+Two of those are reachable anyway, through `ha-selector`, which is available
+from the start and lazy-loads whatever selector it is asked for:
+
+- date and time fields use `ha-selector` with `{date: {}}` / `{time: {}}`,
+  which renders `ha-date-input` / `ha-time-input` and so follows `hass.locale`.
+- `_warmHaElements` mounts one hidden `{duration: {}}` selector, whose chunk
+  carries `ha-button-toggle-group`, so the view switch can be the real element.
+  A time selector does **not** bring it, despite sharing a source file with
+  `ha-base-time-input`. Chunk boundaries are not source boundaries: test the
+  assumption in the browser.
+
+`ha-dialog` wraps `wa-dialog`. The title is `headerTitle` (not `heading`), the
+body is the default slot, and every button goes inside one element slotted as
+`footer`. Set `open` as a property and close by setting it false; it fires
+`closed`. Its own header renders the close button.
+
+A selector is a controlled component: it reports `value-changed` and expects the
+value handed back, so `_dialogField` keeps the value itself.
+
 ### Using Home Assistant's controls
 
-Form controls go through `_textField`, `_checkbox`, `_select` and `_dialogField`,
-which build `ha-input`, `ha-checkbox`, `ha-select`, `ha-date-input` and
-`ha-time-input` when those are defined and plain elements when they are not.
-Never reach for `document.createElement("ha-…")` directly in a view; add it to a
-factory so the fallback stays in step.
+Every control goes through a factory: `_button`, `_iconButton`, `_textField`,
+`_checkbox`, `_select`, `_dialogField`, `_dotMenu`, `_openDialogSurface`,
+`_renderToggle`. Each builds the Home Assistant element when it exists and a
+plain one until then. Never reach for `document.createElement("ha-…")` directly
+in a view; add it to a factory so the fallback stays in step.
+
+Keep the class names on whichever element a factory builds (`.fab`, `.primary`,
+`.row-menu`, `.dialog-submit`, `.dialog-cancel`, `.dialog-delete`, `.toggle`).
+Styling and tests select on those, so they must not care which tag it is.
 
 Two things the frontend renamed underneath: there is no `ha-textfield` any more
 (it is `ha-input`, wrapping `wa-input`), and `ha-select` takes an `options`

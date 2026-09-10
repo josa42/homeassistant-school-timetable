@@ -13,6 +13,12 @@ const PANEL_VERSION = "1.0.0";
 // after a panel's first paint. So the panel renders its own controls, waits on
 // each name, and swaps in the real element the moment it exists.
 const HA_ELEMENTS = [
+  "ha-dialog",
+  "ha-selector",
+  "ha-button-toggle-group",
+  "ha-icon-button",
+  "ha-menu-button",
+  "ha-list",
   "ha-dropdown",
   "ha-dropdown-item",
   "wa-divider",
@@ -272,6 +278,9 @@ const MDI = {
   pencil:
     "M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z",
   delete: "M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z",
+  // mdiDotsVertical, as the todo panel's overflow trigger uses it.
+  overflow:
+    "M12,16A2,2 0 0,1 14,18A2,2 0 0,1 12,20A2,2 0 0,1 10,18A2,2 0 0,1 12,16M12,10A2,2 0 0,1 14,12A2,2 0 0,1 12,14A2,2 0 0,1 10,12A2,2 0 0,1 12,10M12,4A2,2 0 0,1 14,6A2,2 0 0,1 12,8A2,2 0 0,1 10,6A2,2 0 0,1 12,4Z",
   cog: "M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.21,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.21,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.67 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z",
 };
 
@@ -703,9 +712,10 @@ const STYLE = `
     margin: 4px 0;
     background: var(--divider-color, #e0e0e0);
   }
+  .warm { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
   .toggle-row { justify-content: flex-end; margin-bottom: var(--st-gap); }
-  .toggle { display: inline-flex; }
-  .toggle button {
+  div.toggle { display: inline-flex; }
+  div.toggle .toggle-item {
     border: 0;
     border-radius: 0;
     height: 40px;
@@ -715,15 +725,15 @@ const STYLE = `
       rgba(var(--rgb-primary-color, 3, 169, 244), 0.12));
     color: var(--ha-color-on-primary-normal, var(--primary-color, #03a9f4));
   }
-  .toggle button:first-child {
+  div.toggle .toggle-item:first-child {
     border-start-start-radius: 999px;
     border-end-start-radius: 999px;
   }
-  .toggle button:last-child {
+  div.toggle .toggle-item:last-child {
     border-start-end-radius: 999px;
     border-end-end-radius: 999px;
   }
-  .toggle button[aria-pressed="true"] {
+  div.toggle .toggle-item[aria-pressed="true"] {
     background: var(--ha-color-fill-primary-loud-resting, var(--primary-color, #03a9f4));
     color: var(--ha-color-on-primary-loud, var(--text-primary-color, #fff));
   }
@@ -793,6 +803,17 @@ const STYLE = `
     z-index: 10;
     padding: 16px;
   }
+  .dialog-body { display: flex; flex-direction: column; gap: 12px; }
+  ha-dialog .dialog-body { padding-bottom: 4px; }
+  .dialog-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    margin-top: 4px;
+    justify-content: flex-end;
+  }
+  .dialog-actions .dialog-delete { margin-inline-end: auto; }
   .dialog {
     background: var(--card-background-color, #fff);
     border-radius: var(--ha-card-border-radius, 12px);
@@ -804,7 +825,6 @@ const STYLE = `
     flex-direction: column;
     gap: 12px;
   }
-  .dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
 `;
 
 const SVG_OVERFLOW =
@@ -830,6 +850,12 @@ class SchoolTimetablePanel extends HTMLElement {
     this._selected = new Set();
     this._kidTab = "timetable";
     this._nativeMenu = false;
+    this._haIconButton = false;
+    this._haMenuButton = false;
+    this._haList = false;
+    this._haSelector = false;
+    this._haToggleGroup = false;
+    this._haDialog = false;
     this._nativePickers = false;
     this._haInputs = false;
     this._haSelect = false;
@@ -947,44 +973,153 @@ class SchoolTimetablePanel extends HTMLElement {
 
   // --- dialogs ---------------------------------------------------------
 
+  // Home Assistant's dialog when available: real scrim, heading, focus trap and
+  // Escape handling, with the actions in its own slots.
+  _openDialogSurface({ title, description, onDismiss, actions }) {
+    const body = h("div", { class: "dialog-body" });
+    if (this._haDialog) {
+      // ha-dialog wraps wa-dialog: the title is headerTitle, the body is the
+      // default slot and the buttons go in one element slotted as "footer".
+      const dialog = document.createElement("ha-dialog");
+      dialog.headerTitle = title;
+      dialog.open = true;
+      let dismissed = true;
+      dialog.addEventListener("closed", () => {
+        const notify = dismissed;
+        dialog.remove();
+        if (notify) onDismiss();
+      });
+      if (description) body.appendChild(h("p", { class: "hint", text: description }));
+      dialog.appendChild(body);
+
+      const footer = h("div", { class: "dialog-actions" }, ...actions.map((a) => a.element));
+      footer.setAttribute("slot", "footer");
+      dialog.appendChild(footer);
+
+      // wa-dialog does not wire Enter to the primary action either.
+      const primary = actions.find((action) => action.primary);
+      dialog.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" && primary) {
+          event.preventDefault();
+          primary.element.click();
+        }
+      });
+      this._dialogs.appendChild(dialog);
+      return {
+        body,
+        // Closing from a button is not a dismissal, so onDismiss stays quiet.
+        close: () => {
+          dismissed = false;
+          dialog.open = false;
+        },
+      };
+    }
+
+    const surface = h("div", { class: "dialog", role: "dialog" });
+    if (title) surface.appendChild(h("h2", { text: title }));
+    if (description) surface.appendChild(h("p", { class: "hint", text: description }));
+    surface.appendChild(body);
+    surface.appendChild(
+      h("div", { class: "dialog-actions" }, ...actions.map((action) => action.element))
+    );
+    const backdrop = h(
+      "div",
+      {
+        class: "backdrop",
+        onClick: (event) => {
+          if (event.target === backdrop) {
+            backdrop.remove();
+            onDismiss();
+          }
+        },
+        onKeydown: (event) => {
+          if (event.key === "Escape") {
+            backdrop.remove();
+            onDismiss();
+          }
+          if (event.key === "Enter") {
+            const primary = actions.find((action) => action.primary);
+            if (primary) primary.element.click();
+          }
+        },
+      },
+      surface
+    );
+    this._dialogs.append(backdrop);
+    return { body, close: () => backdrop.remove(), surface };
+  }
+
   _confirm(text) {
     return new Promise((resolve) => {
-      const close = (result) => {
-        backdrop.remove();
+      let surface;
+      const finish = (result) => {
+        surface.close();
         resolve(result);
       };
-      const dialog = h(
-        "div",
-        { class: "dialog", role: "alertdialog" },
-        h("div", { text }),
-        h(
-          "div",
-          { class: "actions" },
-          h("button", { text: _t(this._hass, "common.cancel"), onClick: () => close(false) }),
-          h("button", {
-            class: "primary",
-            text: _t(this._hass, "common.delete"),
-            onClick: () => close(true),
-          })
-        )
-      );
-      const backdrop = h(
-        "div",
-        {
-          class: "backdrop",
-          onClick: (event) => {
-            if (event.target === backdrop) close(false);
+      surface = this._openDialogSurface({
+        title: _t(this._hass, "menu.title"),
+        onDismiss: () => resolve(false),
+        actions: [
+          {
+            element: this._button({
+              label: _t(this._hass, "common.cancel"),
+              className: "dialog-cancel",
+              appearance: "plain",
+              onClick: () => finish(false),
+            }),
           },
-          onKeydown: (event) => {
-            if (event.key === "Escape") close(false);
-            if (event.key === "Enter") close(true);
+          {
+            primary: true,
+            element: this._button({
+              label: _t(this._hass, "common.delete"),
+              className: "dialog-submit",
+              variant: "danger",
+              onClick: () => finish(true),
+            }),
           },
-        },
-        dialog
-      );
-      this._dialogs.append(backdrop);
-      dialog.querySelector("button.primary").focus();
+        ],
+      });
+      surface.body.appendChild(h("div", { text }));
     });
+  }
+
+  // Every button in the panel comes from here, so the ha-button upgrade reaches
+  // all of them at once. Classes are kept on whichever element is built, so
+  // selectors and styling do not care which one it is.
+  _button({ label, className = "", icon: iconName, appearance, variant, size, onClick }) {
+    if (this._haButton) {
+      const element = document.createElement("ha-button");
+      if (className) element.className = className;
+      if (appearance) element.setAttribute("appearance", appearance);
+      if (variant) element.setAttribute("variant", variant);
+      if (size) element.setAttribute("size", size);
+      if (iconName) {
+        const glyph = icon(iconName);
+        glyph.setAttribute("slot", "start");
+        element.appendChild(glyph);
+      }
+      element.append(document.createTextNode(label));
+      if (onClick) element.addEventListener("click", onClick);
+      return element;
+    }
+    const parts = [];
+    if (iconName) parts.push(icon(iconName));
+    parts.push(h("span", { text: label }));
+    return h("button", { class: className, onClick }, ...parts);
+  }
+
+  _iconButton({ path, label, className = "", onClick }) {
+    if (this._haIconButton) {
+      const element = document.createElement("ha-icon-button");
+      element.className = className;
+      element.path = MDI[path];
+      element.label = label;
+      if (onClick) element.addEventListener("click", onClick);
+      return element;
+    }
+    const element = h("button", { class: className, title: label, onClick });
+    element.appendChild(icon(path));
+    return element;
   }
 
   // Text, url and number fields. ha-input carries its own label, so the caller
@@ -1050,6 +1185,34 @@ class SchoolTimetablePanel extends HTMLElement {
   // which follows the browser.
   _dialogField(field) {
     const type = field.type || "text";
+    // ha-selector is available from the first paint and lazy-loads ha-date-input
+    // or ha-time-input itself, which is what makes these follow hass.locale.
+    if (this._haSelector && (type === "date" || type === "time")) {
+      const element = document.createElement("ha-selector");
+      element.hass = this._hass;
+      element.selector = type === "date" ? { date: {} } : { time: {} };
+      element.required = Boolean(field.required);
+      if (field.label) element.label = field.label;
+      let current = field.value
+        ? type === "time"
+          ? `${field.value}:00`.slice(0, 8)
+          : field.value
+        : "";
+      element.value = current || undefined;
+      // A selector is a controlled component: it reports a change and expects
+      // the value to be handed back, so the panel keeps it here.
+      element.addEventListener("value-changed", (event) => {
+        event.stopPropagation();
+        current = event.detail.value || "";
+        element.value = current || undefined;
+      });
+      return {
+        element,
+        read: () => (type === "time" ? String(current).slice(0, 5) : String(current)),
+        focus: () => element.focus?.(),
+        labelled: Boolean(field.label),
+      };
+    }
     if (this._nativePickers && (type === "date" || type === "time")) {
       const element = document.createElement(
         type === "date" ? "ha-date-input" : "ha-time-input"
@@ -1083,18 +1246,19 @@ class SchoolTimetablePanel extends HTMLElement {
 
   _formDialog({ title, description, fields, submitLabel, validate, deletable }) {
     return new Promise((resolve) => {
-      const inputs = {};
+      const controls = {};
       const error = h("p", { class: "status error" });
-      const close = (result) => {
-        backdrop.remove();
+      let surface;
+      const finish = (result) => {
+        surface.close();
         resolve(result);
       };
       const submit = () => {
         const values = {};
         for (const field of fields) {
-          const value = inputs[field.key].read();
+          const value = controls[field.key].read();
           if (field.required && !value) {
-            inputs[field.key].focus();
+            controls[field.key].focus();
             return;
           }
           values[field.key] = value;
@@ -1104,57 +1268,56 @@ class SchoolTimetablePanel extends HTMLElement {
           error.textContent = message;
           return;
         }
-        close(values);
+        finish(values);
       };
-      const body = fields.map((field) => {
-        const control = this._dialogField(field);
-        inputs[field.key] = control;
-        return control.labelled
-          ? control.element
-          : h("label", { class: "field" }, field.label, control.element);
+
+      const actions = [];
+      if (deletable) {
+        actions.push({
+          element: this._button({
+            label: _t(this._hass, "common.delete"),
+            className: "dialog-delete",
+            variant: "danger",
+            appearance: "plain",
+            onClick: () => finish({ __deleted: true }),
+          }),
+        });
+      }
+      actions.push({
+        element: this._button({
+          label: _t(this._hass, "common.cancel"),
+          className: "dialog-cancel",
+          appearance: "plain",
+          onClick: () => finish(null),
+        }),
       });
-      const dialog = h(
-        "div",
-        { class: "dialog", role: "dialog" },
-        h("h2", { text: title }),
-        description ? h("p", { class: "hint", text: description }) : null,
-        ...body,
-        error,
-        h(
-          "div",
-          { class: "actions" },
-          deletable
-            ? h("button", {
-                class: "danger",
-                style: "margin-right: auto",
-                text: _t(this._hass, "common.delete"),
-                onClick: () => close({ __deleted: true }),
-              })
-            : null,
-          h("button", { text: _t(this._hass, "common.cancel"), onClick: () => close(null) }),
-          h("button", {
-            class: "primary",
-            text: submitLabel || _t(this._hass, "common.save"),
-            onClick: submit,
-          })
-        )
-      );
-      const backdrop = h(
-        "div",
-        {
-          class: "backdrop",
-          onClick: (event) => {
-            if (event.target === backdrop) close(null);
-          },
-          onKeydown: (event) => {
-            if (event.key === "Escape") close(null);
-            if (event.key === "Enter") submit();
-          },
-        },
-        dialog
-      );
-      this._dialogs.append(backdrop);
-      if (fields.length) inputs[fields[0].key].focus();
+      actions.push({
+        primary: true,
+        element: this._button({
+          label: submitLabel || _t(this._hass, "common.save"),
+          className: "dialog-submit",
+          onClick: submit,
+        }),
+      });
+
+      surface = this._openDialogSurface({
+        title,
+        description,
+        onDismiss: () => resolve(null),
+        actions,
+      });
+
+      for (const field of fields) {
+        const control = this._dialogField(field);
+        controls[field.key] = control;
+        surface.body.appendChild(
+          control.labelled
+            ? control.element
+            : h("label", { class: "field" }, field.label, control.element)
+        );
+      }
+      surface.body.appendChild(error);
+      if (fields.length) controls[fields[0].key].focus();
     });
   }
 
@@ -1165,13 +1328,7 @@ class SchoolTimetablePanel extends HTMLElement {
     // Only shown on a narrow screen, where Home Assistant hides its sidebar and
     // this is the only way back to it. On a wide screen that sidebar is already
     // on display and the button would just collapse it.
-    this._sidebarToggle = h("button", {
-      class: "menu",
-      title: "Menu",
-      onClick: () =>
-        this.dispatchEvent(new CustomEvent("hass-toggle-menu", { bubbles: true, composed: true })),
-    });
-    this._sidebarToggle.innerHTML = SVG_MENU;
+    this._sidebarToggle = h("div", { class: "sidebar-toggle" });
     this._menuHost = h("div", { class: "menu-host" });
     this._main = h("div", { class: "content" });
     this._dialogs = h("div");
@@ -1202,12 +1359,38 @@ class SchoolTimetablePanel extends HTMLElement {
   // Every element is optional: the panel works with its own controls and gets
   // better as Home Assistant's chunks land. Nothing here waits on a timeout,
   // because there is no telling how late a chunk arrives.
+  // ha-button-toggle-group is only ever loaded by components a panel page never
+  // shows. Mounting a hidden duration selector once is enough: ha-selector
+  // lazy-loads ha-selector-duration, which brings the toggle group with it.
+  // Date and time fields do not need this, they go through ha-selector directly.
+  // If Home Assistant ever stops pulling it in, the toggle falls back to the
+  // panel's own buttons and nothing breaks.
+  _warmHaElements() {
+    if (this._warmed || this._haToggleGroup) return;
+    if (!customElements.get("ha-selector") || !this._hass) return;
+    this._warmed = true;
+    const host = h("div", { class: "warm" });
+    const selector = document.createElement("ha-selector");
+    selector.hass = this._hass;
+    selector.selector = { duration: {} };
+    selector.value = { hours: 0, minutes: 45, seconds: 0 };
+    host.appendChild(selector);
+    this.shadowRoot.appendChild(host);
+    customElements
+      .whenDefined("ha-button-toggle-group")
+      .then(() => setTimeout(() => host.remove(), 0))
+      .catch(() => host.remove());
+  }
+
   _watchHaElements() {
     this._readHaElements();
+    this._warmHaElements();
     for (const name of HA_ELEMENTS) {
       if (customElements.get(name)) continue;
       customElements.whenDefined(name).then(() => {
-        if (!this.isConnected || !this._readHaElements()) return;
+        if (!this.isConnected) return;
+        this._warmHaElements();
+        if (!this._readHaElements()) return;
         this._render();
       });
     }
@@ -1218,10 +1401,16 @@ class SchoolTimetablePanel extends HTMLElement {
     const has = (name) => Boolean(customElements.get(name));
     const next = {
       _nativeMenu: has("ha-dropdown") && has("ha-dropdown-item"),
+      _haIconButton: has("ha-icon-button"),
+      _haMenuButton: has("ha-menu-button"),
+      _haList: has("ha-list") && has("ha-dropdown-item"),
       _haButton: has("ha-button"),
       _haInputs: has("ha-input"),
       _haSelect: has("ha-select"),
       _haCheckbox: has("ha-checkbox"),
+      _haSelector: has("ha-selector"),
+      _haToggleGroup: has("ha-button-toggle-group"),
+      _haDialog: has("ha-dialog"),
       _nativePickers: has("ha-date-input") && has("ha-time-input"),
     };
     const changed = Object.entries(next).some(([key, value]) => this[key] !== value);
@@ -1253,9 +1442,11 @@ class SchoolTimetablePanel extends HTMLElement {
   }
 
   _trigger(className = "menu") {
-    const trigger = h("button", { class: className, title: _t(this._hass, "menu.title") });
-    trigger.innerHTML = SVG_OVERFLOW;
-    return trigger;
+    return this._iconButton({
+      path: "overflow",
+      label: _t(this._hass, "menu.title"),
+      className,
+    });
   }
 
   // One dot-menu, used by the toolbar and by every table row. Falls back to the
@@ -1276,7 +1467,7 @@ class SchoolTimetablePanel extends HTMLElement {
     return trigger;
   }
 
-  _dropdownItem(entry) {
+  _dropdownItem(entry, clickable = false) {
     if (entry.divider) return document.createElement("wa-divider");
     const item = document.createElement("ha-dropdown-item");
     item.value = entry.value;
@@ -1285,6 +1476,9 @@ class SchoolTimetablePanel extends HTMLElement {
     const glyph = icon(entry.icon);
     glyph.setAttribute("slot", "icon");
     item.append(glyph, document.createTextNode(entry.label));
+    // Inside ha-dropdown the wa-select event runs the action; in a list there
+    // is nothing above to hear it, so the item handles its own click.
+    if (clickable && entry.run) item.addEventListener("click", () => entry.run());
     return item;
   }
 
@@ -1488,6 +1682,7 @@ class SchoolTimetablePanel extends HTMLElement {
     this._syncMenuHost();
     const narrow = this._isNarrow();
     this._sidebarToggle.hidden = !narrow;
+    this._syncSidebarToggle(narrow);
     this._titleHost.classList.toggle("with-icon", narrow);
     this._titleHost.classList.toggle("picker", narrow);
     this._titleHost.replaceChildren(
@@ -1573,6 +1768,35 @@ class SchoolTimetablePanel extends HTMLElement {
   // Narrow screens lose the pane and pick the view from the toolbar instead.
   // Built like the todo panel's list picker: an ha-button in the dropdown's
   // trigger slot, with the chevron in the button's end slot.
+  // ha-menu-button is what every Home Assistant panel puts here; it wants hass
+  // and narrow and does the toggling itself.
+  _syncSidebarToggle(narrow) {
+    if (!narrow || this._sidebarToggle.dataset.kind === (this._haMenuButton ? "ha" : "own")) {
+      if (this._sidebarToggle.firstElementChild && this._haMenuButton) {
+        this._sidebarToggle.firstElementChild.hass = this._hass;
+        this._sidebarToggle.firstElementChild.narrow = true;
+      }
+      if (this._sidebarToggle.firstElementChild) return;
+    }
+    if (this._haMenuButton) {
+      const button = document.createElement("ha-menu-button");
+      button.hass = this._hass;
+      button.narrow = true;
+      this._sidebarToggle.dataset.kind = "ha";
+      this._sidebarToggle.replaceChildren(button);
+      return;
+    }
+    const own = h("button", {
+      class: "menu",
+      title: "Menu",
+      onClick: () =>
+        this.dispatchEvent(new CustomEvent("hass-toggle-menu", { bubbles: true, composed: true })),
+    });
+    own.innerHTML = SVG_MENU;
+    this._sidebarToggle.dataset.kind = "own";
+    this._sidebarToggle.replaceChildren(own);
+  }
+
   _renderViewPicker() {
     const chevron = icon("chevron");
     chevron.setAttribute("slot", "end");
@@ -1595,6 +1819,7 @@ class SchoolTimetablePanel extends HTMLElement {
 
   _renderNav() {
     const entries = this._navItems();
+    const isKid = (entry) => Boolean(entry.value && entry.value.startsWith("kid:"));
     const row = (entry) =>
       h(
         "button",
@@ -1607,20 +1832,25 @@ class SchoolTimetablePanel extends HTMLElement {
         h("span", { text: entry.label })
       );
 
+    // The todo panel's pane is an ha-list of the same items its picker uses.
+    const group = (items, className) => {
+      if (this._haList) {
+        const list = document.createElement("ha-list");
+        list.setAttribute("activatable", "");
+        list.className = className;
+        list.append(...items.map((entry) => this._dropdownItem(entry, true)));
+        return list;
+      }
+      return h("div", { class: className }, ...items.map(row));
+    };
+
     return h(
       "div",
       { class: "nav" },
-      h(
-        "div",
-        { class: "nav-kids" },
-        ...entries.filter((entry) => entry.value?.startsWith("kid:")).map(row)
-      ),
-      h(
-        "div",
-        { class: "nav-bottom" },
-        ...entries
-          .filter((entry) => !entry.divider && !entry.value.startsWith("kid:"))
-          .map(row)
+      group(entries.filter(isKid), "nav-kids"),
+      group(
+        entries.filter((entry) => !entry.divider && !isKid(entry)),
+        "nav-bottom"
       )
     );
   }
@@ -1634,9 +1864,10 @@ class SchoolTimetablePanel extends HTMLElement {
         h(
           "td",
           { class: "grow" },
-          h("button", {
-            class: "link",
-            text: `${fmtTime(this._hass, period.start)} – ${fmtTime(this._hass, period.end)}`,
+          this._button({
+            label: `${fmtTime(this._hass, period.start)} – ${fmtTime(this._hass, period.end)}`,
+            className: "link",
+            appearance: "plain",
             onClick: () => this._editDefaultPeriod(index),
           })
         ),
@@ -1750,21 +1981,36 @@ class SchoolTimetablePanel extends HTMLElement {
   }
 
   _renderFab(label, onClick) {
-    return h("button", { class: "fab", onClick }, icon("plus"), h("span", { text: label }));
+    return this._button({ label, className: "fab", icon: "plus", size: "l", onClick });
   }
 
   _renderToggle(active, options, onChange) {
+    if (this._haToggleGroup) {
+      const group = document.createElement("ha-button-toggle-group");
+      group.className = "toggle";
+      group.buttons = options.map((option) => ({ label: option.label, value: option.value }));
+      group.active = active;
+      group.addEventListener("value-changed", (event) => {
+        event.stopPropagation();
+        onChange(event.detail.value);
+      });
+      return group;
+    }
+    // Same thing by hand: brand buttons, accent for the active segment.
     return h(
       "div",
       { class: "toggle", role: "group" },
-      ...options.map((option) =>
-        h("button", {
-          class: "toggle-item",
-          "aria-pressed": active === option.value ? "true" : "false",
-          text: option.label,
+      ...options.map((option) => {
+        const current = active === option.value;
+        const button = this._button({
+          label: option.label,
+          className: "toggle-item",
+          appearance: current ? "accent" : "filled",
           onClick: () => onChange(option.value),
-        })
-      )
+        });
+        button.setAttribute("aria-pressed", current ? "true" : "false");
+        return button;
+      })
     );
   }
 
@@ -1913,13 +2159,13 @@ class SchoolTimetablePanel extends HTMLElement {
                   h(
                     "td",
                     { class: "period-head" },
-                    h("button", {
-                      class: "link",
-                      title: _t(this._hass, "timetable.edit_period"),
-                      text: `${fmtTime(this._hass, period.start)} – ${fmtTime(
+                    this._button({
+                      label: `${fmtTime(this._hass, period.start)} – ${fmtTime(
                         this._hass,
                         period.end
                       )}`,
+                      className: "link",
+                      appearance: "plain",
                       onClick: () => this._editPeriod(index),
                     })
                   ),
@@ -1969,8 +2215,9 @@ class SchoolTimetablePanel extends HTMLElement {
       h(
         "div",
         { class: "row" },
-        h("button", {
-          text: _t(this._hass, "timetable.add_period"),
+        this._button({
+          label: _t(this._hass, "timetable.add_period"),
+          appearance: "filled",
           onClick: () => this._editPeriod(null),
         })
       ),
@@ -1978,9 +2225,9 @@ class SchoolTimetablePanel extends HTMLElement {
         "div",
         { class: "row spread" },
         this._dirtyBadge,
-        h("button", {
-          class: "primary",
-          text: _t(this._hass, "common.save"),
+        this._button({
+          label: _t(this._hass, "common.save"),
+          className: "primary",
           onClick: () => this._saveTimetable(kid),
         })
       ),
@@ -2406,13 +2653,16 @@ class SchoolTimetablePanel extends HTMLElement {
           h(
             "div",
             { class: "row" },
-            h("button", {
-              text: _t(this._hass, "closed.replace_title"),
+            this._button({
+              label: _t(this._hass, "closed.replace_title"),
+              appearance: "filled",
               onClick: () => this._replaceInSelected(),
             }),
-            h("button", {
-              class: "danger",
-              text: _t(this._hass, "closed.bulk_delete"),
+            this._button({
+              label: _t(this._hass, "closed.bulk_delete"),
+              className: "danger",
+              variant: "danger",
+              appearance: "filled",
               onClick: () => this._deleteSelected(),
             })
           )
@@ -2435,14 +2685,15 @@ class SchoolTimetablePanel extends HTMLElement {
   }
 
   _openImportDialog() {
-    const close = () => backdrop.remove();
     const status = h("p", { class: "status error" });
     const file = h("input", { type: "file", accept: ".ics,text/calendar" });
     const url = this._textField({
       type: "url",
+      label: _t(this._hass, "import.url"),
       placeholder: _t(this._hass, "import.url_placeholder"),
     });
 
+    let surface;
     const submit = async () => {
       const address = url.read();
       const chosen = file.files && file.files[0];
@@ -2450,45 +2701,40 @@ class SchoolTimetablePanel extends HTMLElement {
         status.textContent = _t(this._hass, "import.nothing_chosen");
         return;
       }
-      close();
+      surface.close();
       if (address) await this._import({ url: address });
       else await this._importFile(chosen);
     };
 
-    const dialog = h(
-      "div",
-      { class: "dialog", role: "dialog" },
-      h("h2", { text: _t(this._hass, "import.section") }),
-      h("p", { class: "hint", text: _t(this._hass, "import.hint") }),
+    surface = this._openDialogSurface({
+      title: _t(this._hass, "import.section"),
+      description: _t(this._hass, "import.hint"),
+      onDismiss: () => {},
+      actions: [
+        {
+          element: this._button({
+            label: _t(this._hass, "common.cancel"),
+            className: "dialog-cancel",
+            appearance: "plain",
+            onClick: () => surface.close(),
+          }),
+        },
+        {
+          primary: true,
+          element: this._button({
+            label: _t(this._hass, "import.button"),
+            className: "dialog-submit",
+            onClick: submit,
+          }),
+        },
+      ],
+    });
+
+    surface.body.append(
       h("label", { class: "field" }, _t(this._hass, "import.file"), file),
-      h("label", { class: "field" }, _t(this._hass, "import.url"), url.element),
-      status,
-      h(
-        "div",
-        { class: "actions" },
-        h("button", { text: _t(this._hass, "common.cancel"), onClick: close }),
-        h("button", {
-          class: "primary",
-          text: _t(this._hass, "import.button"),
-          onClick: submit,
-        })
-      )
+      url.labelled ? url.element : h("label", { class: "field" }, _t(this._hass, "import.url"), url.element),
+      status
     );
-    const backdrop = h(
-      "div",
-      {
-        class: "backdrop",
-        onClick: (event) => {
-          if (event.target === backdrop) close();
-        },
-        onKeydown: (event) => {
-          if (event.key === "Escape") close();
-          if (event.key === "Enter") submit();
-        },
-      },
-      dialog
-    );
-    this._dialogs.append(backdrop);
     file.focus();
   }
 
@@ -2559,6 +2805,12 @@ class SchoolTimetablePanel extends HTMLElement {
     this._selected = new Set();
     this._kidTab = "timetable";
     this._nativeMenu = false;
+    this._haIconButton = false;
+    this._haMenuButton = false;
+    this._haList = false;
+    this._haSelector = false;
+    this._haToggleGroup = false;
+    this._haDialog = false;
     this._nativePickers = false;
     this._haInputs = false;
     this._haSelect = false;
