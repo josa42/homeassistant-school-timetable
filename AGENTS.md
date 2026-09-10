@@ -126,6 +126,18 @@ The panel watches its own `matchMedia` rather than trusting only the `narrow`
 property, because that property tracks Home Assistant's breakpoint and not this
 panel's. Keep `NARROW_QUERY` and the media query in `STYLE` in step.
 
+### The upgrade path rarely fires, so the replica is what ships
+
+`window.loadCardHelpers` is the only public hook for pulling Home Assistant's
+lazily bundled elements in, and it is assigned inside the **dashboard** panel's
+chunk. Open `/school-timetable` directly and it does not exist, so
+`_setupMenu`'s call no-ops and every fallback renders. Treat the fallbacks as
+the primary path and keep them matching the real components: the dot-menu
+surface copies `ha-dropdown`'s `#menu` (raised card, 1px quiet border, 8px
+radius, 4px padding, `width: max-content`) and its rows copy
+`ha-dropdown-item`, including the `[selected]` state of medium weight, primary
+colour and `--ha-color-fill-primary-quiet-resting`.
+
 The overflow menu tries for the real thing: `_setupMenu` installs the panel's
 own menu first, then calls `window.loadCardHelpers()` and, if
 `ha-dropdown-item` turns up within two seconds, replaces it with `ha-dropdown`

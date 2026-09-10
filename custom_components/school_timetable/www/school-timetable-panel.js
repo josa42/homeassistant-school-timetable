@@ -441,7 +441,47 @@ const STYLE = `
   /* Next to the navigation icon the title sits closer, as it does there. */
   .toolbar .title.with-icon { padding-inline-start: var(--ha-space-2, 8px); }
   /* Holding the picker it is a flex row, not a line of text. */
-  .toolbar .title.picker { display: flex; align-items: center; line-height: normal; }
+  .toolbar .title.picker {
+    display: flex;
+    align-items: center;
+    line-height: normal;
+    padding-inline-start: var(--ha-space-2, 8px);
+  }
+  /* Same pill the todo panel's picker is: brand fill, white label, chevron
+     inside. ha-button draws its own, so it only needs sizing. */
+  .view-picker {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    box-sizing: border-box;
+    height: 40px;
+    max-width: 60vw;
+    padding: 0 16px;
+    border: 0;
+    border-radius: 999px;
+    font-size: var(--ha-font-size-m, 14px);
+    background: var(--ha-color-fill-primary-loud-resting, var(--primary-color, #03a9f4));
+    color: var(--ha-color-on-primary-loud, var(--text-primary-color, #fff));
+  }
+  .view-picker > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .view-picker svg { width: 20px; height: 20px; flex: 0 0 auto; color: currentColor; }
+  ha-button.view-picker {
+    background: none;
+    padding: 0;
+    height: auto;
+    border-radius: 0;
+    --ha-button-height: 40px;
+    --ha-button-label-overflow: hidden;
+  }
+  ha-button.view-picker div { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* Exactly what ha-dropdown-item[selected] renders as. */
+  .menu-item.active {
+    font-weight: var(--ha-font-weight-medium, 500);
+    color: var(--primary-color, #03a9f4);
+    background: var(--ha-color-fill-primary-quiet-resting,
+      rgba(var(--rgb-primary-color, 3, 169, 244), 0.12));
+  }
+  .menu-item.active svg { color: var(--primary-color, #03a9f4); }
   .menu {
     border: 0;
     background: none;
@@ -623,7 +663,6 @@ const STYLE = `
   }
   .fab svg { width: 20px; height: 20px; color: currentColor; }
   .menu-host { display: flex; align-items: center; }
-  .menu-item { display: flex; align-items: center; gap: 16px; }
   .menu-popup.anchored { top: auto; right: auto; }
   .row-menu {
     border: 0;
@@ -636,7 +675,12 @@ const STYLE = `
   .row-menu:hover { background: var(--secondary-background-color, #e5e5e5); }
   .row-menu svg { width: 20px; height: 20px; display: block; }
   td.row-actions { width: 1%; text-align: end; white-space: nowrap; }
-  .menu-item svg { width: 20px; height: 20px; flex: 0 0 auto; color: var(--secondary-text-color, #727272); }
+  .menu-item svg {
+    width: 24px;
+    height: 24px;
+    flex: 0 0 auto;
+    color: var(--ha-color-on-neutral-normal, var(--secondary-text-color, #727272));
+  }
   .menu-item.danger svg { color: var(--error-color, #db4437); }
   .menu-divider {
     height: 1px;
@@ -685,28 +729,44 @@ const STYLE = `
   .status.warn { color: var(--warning-color, #ffa600); }
   .status.error { color: var(--error-color, #db4437); }
   .menu-backdrop { position: fixed; inset: 0; z-index: 9; }
+  /* Same surface ha-dropdown renders: raised card, 1px quiet border, 8px
+     radius, 4px of padding, sized to its content. */
   .menu-popup {
     position: fixed;
     top: calc(var(--header-height, 56px) + 4px);
     right: 8px;
-    min-width: 230px;
-    padding: 6px;
+    width: max-content;
+    min-width: 200px;
+    max-width: min(80vw, 360px);
+    padding: var(--ha-space-1, 4px);
     display: flex;
     flex-direction: column;
+    box-sizing: border-box;
+    color: var(--primary-text-color, #212121);
     background: var(--card-background-color, #fff);
-    border-radius: var(--ha-card-border-radius, 12px);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.24);
+    border: 1px solid var(--ha-color-border-neutral-quiet, var(--divider-color, #e0e0e0));
+    border-radius: var(--ha-border-radius-md, 8px);
+    box-shadow: var(--ha-box-shadow-m, 0 4px 16px rgba(0, 0, 0, 0.24));
   }
+  /* And the metrics of an ha-dropdown-item. */
   .menu-item {
-    text-align: left;
+    display: flex;
+    align-items: center;
+    gap: var(--ha-space-3, 12px);
+    width: 100%;
+    min-height: 48px;
+    box-sizing: border-box;
+    text-align: start;
     border: 0;
     background: none;
-    border-radius: 8px;
-    padding: 10px 12px;
-    font-size: 14px;
+    border-radius: var(--ha-border-radius-md, 8px);
+    padding: var(--ha-space-2, 8px) var(--ha-space-3, 12px);
+    font-size: var(--ha-font-size-m, 14px);
+    color: inherit;
   }
   .menu-item:hover { background: var(--secondary-background-color, #e5e5e5); }
   .menu-item.danger { color: var(--error-color, #db4437); }
+  .menu-item.danger svg { color: var(--error-color, #db4437); }
   .backdrop {
     position: fixed;
     inset: 0;
@@ -1208,6 +1268,7 @@ class SchoolTimetablePanel extends HTMLElement {
     if (entry.divider) return document.createElement("wa-divider");
     const item = document.createElement("ha-dropdown-item");
     item.value = entry.value;
+    if (entry.active) item.selected = true;
     if (entry.danger) item.setAttribute("variant", "danger");
     const glyph = icon(entry.icon);
     glyph.setAttribute("slot", "icon");
@@ -1249,8 +1310,9 @@ class SchoolTimetablePanel extends HTMLElement {
           : h(
               "button",
               {
-                class: `menu-item ${item.danger ? "danger" : ""}`,
+                class: `menu-item ${item.danger ? "danger" : ""} ${item.active ? "active" : ""}`,
                 role: "menuitem",
+                "aria-current": item.active ? "true" : null,
                 onClick: () => {
                   close();
                   item.run();
@@ -1274,8 +1336,11 @@ class SchoolTimetablePanel extends HTMLElement {
     );
     this._dialogs.append(backdrop);
     this._placeMenu(popup, anchor);
-    const first = popup.querySelector("button");
-    if (first) first.focus();
+    // Focus the surface rather than the first item: focusing an item draws a
+    // focus ring over the selected row, which the real dropdown does not show
+    // when it was opened with a pointer. Tab still walks into the items.
+    popup.tabIndex = -1;
+    popup.focus();
   }
 
   _placeMenu(popup, anchor) {
@@ -1283,10 +1348,18 @@ class SchoolTimetablePanel extends HTMLElement {
     const rect = anchor.getBoundingClientRect();
     const width = popup.offsetWidth;
     const height = popup.offsetHeight;
-    const room = window.innerHeight - rect.bottom;
     popup.classList.add("anchored");
-    popup.style.left = `${Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8))}px`;
-    popup.style.top = room < height + 8 ? `${Math.max(8, rect.top - height - 4)}px` : `${rect.bottom + 4}px`;
+
+    // Left edge under the trigger, pulled back only when that would overflow.
+    // Row menus sit at the right of the table and end up right-aligned anyway.
+    const left = Math.min(rect.left, window.innerWidth - width - 8);
+    popup.style.left = `${Math.max(8, left)}px`;
+
+    // A trigger in the toolbar opens below the whole bar, not overlapping it.
+    const bar = anchor.closest(".toolbar");
+    const below = Math.max(rect.bottom + 4, bar ? bar.getBoundingClientRect().bottom : 0);
+    const fitsBelow = window.innerHeight - below > height + 8;
+    popup.style.top = fitsBelow ? `${below}px` : `${Math.max(8, rect.top - height - 4)}px`;
   }
 
   _menuItems() {
@@ -1493,8 +1566,8 @@ class SchoolTimetablePanel extends HTMLElement {
     chevron.setAttribute("slot", "end");
     let trigger;
     if (this._haButton) {
+      // No appearance attribute, so it renders as the todo panel's picker does.
       trigger = document.createElement("ha-button");
-      trigger.setAttribute("appearance", "plain");
       trigger.className = "view-picker";
       trigger.append(h("div", { text: this._viewLabel() }), chevron);
     } else {
