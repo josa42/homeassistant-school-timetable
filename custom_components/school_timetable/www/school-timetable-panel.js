@@ -474,7 +474,7 @@ const STYLE = `
   }
   /* Same pill the todo panel's picker is: brand fill, white label, chevron
      inside. ha-button draws its own, so it only needs sizing. */
-  .view-picker {
+  button.view-picker {
     display: inline-flex;
     align-items: center;
     gap: 8px;
@@ -507,7 +507,7 @@ const STYLE = `
       rgba(var(--rgb-primary-color, 3, 169, 244), 0.12));
   }
   .menu-item.active svg { color: var(--primary-color, #03a9f4); }
-  .menu {
+  button.menu {
     border: 0;
     background: none;
     color: inherit;
@@ -516,7 +516,7 @@ const STYLE = `
     border-radius: 50%;
     line-height: 0;
   }
-  .menu:hover { background: rgba(255, 255, 255, 0.12); }
+  button.menu:hover { background: rgba(255, 255, 255, 0.12); }
   .content { flex: 1; min-height: 0; }
   /* Mirrors ha-two-pane-top-app-bar-fixed. */
   .layout { display: flex; overflow: hidden; height: 100%; }
@@ -537,7 +537,7 @@ const STYLE = `
   .nav-bottom { padding: 4px 0 8px; border-top: 1px solid var(--divider-color, #e0e0e0); }
   /* Rows follow an activated mwc list item: full bleed, 48px, and primary
      colour over a 12% tint when current. */
-  .nav-item {
+  button.nav-item {
     display: flex;
     align-items: center;
     gap: 16px;
@@ -564,12 +564,12 @@ const STYLE = `
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .nav-item:hover { background: rgba(var(--rgb-primary-text-color, 0, 0, 0), 0.04); }
-  .nav-item[aria-current="page"] {
+  button.nav-item:hover { background: rgba(var(--rgb-primary-text-color, 0, 0, 0), 0.04); }
+  button.nav-item[aria-current="page"] {
     color: var(--primary-color, #03a9f4);
     background: rgba(var(--rgb-primary-color, 3, 169, 244), 0.12);
   }
-  .nav-item[aria-current="page"] svg { color: var(--primary-color, #03a9f4); }
+  button.nav-item[aria-current="page"] svg { color: var(--primary-color, #03a9f4); }
   .view { flex: 1; min-width: 0; height: 100%; overflow: auto; }
   .view-inner { max-width: 1100px; margin: 0 auto; padding: var(--st-gap) var(--st-gap) 88px; }
   @media (max-width: 700px) {
@@ -668,10 +668,15 @@ const STYLE = `
     background: var(--secondary-background-color, #e5e5e5);
     color: var(--primary-text-color, #212121);
   }
+  /* Position only: ha-button draws itself, and painting the host would put a
+     second button around it. */
   .fab {
     position: fixed;
     right: calc(16px + var(--safe-area-inset-right, 0px));
     bottom: calc(16px + var(--safe-area-inset-bottom, 0px));
+    z-index: 5;
+  }
+  button.fab {
     display: inline-flex;
     align-items: center;
     gap: 8px;
@@ -684,12 +689,11 @@ const STYLE = `
     color: var(--ha-color-on-primary-loud, var(--text-primary-color, #fff));
     box-shadow: var(--ha-box-shadow-l, 0 3px 5px -1px rgba(0, 0, 0, 0.2),
       0 6px 10px 0 rgba(0, 0, 0, 0.14), 0 1px 18px 0 rgba(0, 0, 0, 0.12));
-    z-index: 5;
   }
   .fab svg { width: 20px; height: 20px; color: currentColor; }
   .menu-host { display: flex; align-items: center; }
   .menu-popup.anchored { top: auto; right: auto; }
-  .row-menu {
+  button.row-menu {
     border: 0;
     background: none;
     padding: 4px;
@@ -697,8 +701,9 @@ const STYLE = `
     line-height: 0;
     color: var(--secondary-text-color, #727272);
   }
-  .row-menu:hover { background: var(--secondary-background-color, #e5e5e5); }
+  button.row-menu:hover { background: var(--secondary-background-color, #e5e5e5); }
   .row-menu svg { width: 20px; height: 20px; display: block; }
+  ha-icon-button.row-menu { --mdc-icon-button-size: 40px; --mdc-icon-size: 20px; }
   td.row-actions { width: 1%; text-align: end; white-space: nowrap; }
   .menu-item svg {
     width: 24px;
