@@ -1919,7 +1919,11 @@ class SchoolTimetablePanel extends HTMLElement {
   }
 
   _navItems() {
-    const items = this._data.kids.map((kid) => ({
+    const language = this._hass?.locale?.language || undefined;
+    const kids = [...this._data.kids].sort((a, b) =>
+      String(a.name).localeCompare(String(b.name), language)
+    );
+    const items = kids.map((kid) => ({
       value: `kid:${kid.id}`,
       icon: "account",
       label: kid.name,
@@ -2219,9 +2223,8 @@ class SchoolTimetablePanel extends HTMLElement {
     });
     if (!values) return;
     const result = await this._call({ type: "school_timetable/kid/add", name: values.name });
-    this._kidId = result.kid_id;
-    this._timetableId = null;
-    this._render();
+    this._kidTab = "timetable";
+    this._show("kid", result.kid_id);
   }
 
   async _renameKid(kid) {
