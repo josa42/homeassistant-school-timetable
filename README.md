@@ -61,6 +61,10 @@ Open **Stundenplan** in the sidebar.
    starts empty, with the default lesson times from Settings.
 3. **Fill in the subjects.** Click a row's times to change, add or remove a
    period. Save.
+
+Adding, renaming and deleting a kid or a timetable, and adding a day off, all
+live in the menu in the top right. A timetable's label and date range are edited
+there too, under *Stundenplan bearbeiten*.
 4. **Add holidays** under Ferien, by hand or by importing an ICS file.
 
 Under Settings, the default lesson times decide what a new timetable starts

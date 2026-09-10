@@ -35,11 +35,14 @@ const STRINGS = {
     "kids.add": "Add kid",
     "kids.add_title": "Add kid",
     "kids.rename_title": "Rename kid",
+    "kids.delete_title": "Delete kid",
+    "menu.title": "Actions",
     "kids.empty": "No kids yet. Add one to get started.",
     "kids.delete_confirm": "Delete {name} and their timetables? The calendar entity is removed too.",
     "timetable.section": "Timetables",
-    "timetable.add": "Add timetable",
     "timetable.add_title": "Add timetable",
+    "timetable.edit_title": "Edit timetable",
+    "timetable.delete_title": "Delete timetable",
     "timetable.new_hint": "Starts with the default times from settings and no subjects.",
     "timetable.empty": "No timetable yet. Add one to start filling in lessons.",
     "timetable.label": "Label",
@@ -116,11 +119,14 @@ const STRINGS = {
     "kids.add": "Kind hinzufügen",
     "kids.add_title": "Kind hinzufügen",
     "kids.rename_title": "Kind umbenennen",
+    "kids.delete_title": "Kind löschen",
+    "menu.title": "Aktionen",
     "kids.empty": "Noch keine Kinder. Lege eines an, um zu starten.",
     "kids.delete_confirm": "{name} und alle Stundenpläne löschen? Der Kalender wird mit entfernt.",
     "timetable.section": "Stundenpläne",
-    "timetable.add": "Stundenplan hinzufügen",
     "timetable.add_title": "Stundenplan hinzufügen",
+    "timetable.edit_title": "Stundenplan bearbeiten",
+    "timetable.delete_title": "Stundenplan löschen",
     "timetable.new_hint": "Startet mit den Standardzeiten aus den Einstellungen, ohne Fächer.",
     "timetable.empty": "Noch kein Stundenplan. Lege einen an, um Fächer einzutragen.",
     "timetable.label": "Bezeichnung",
@@ -481,6 +487,30 @@ const STYLE = `
   .status { font-size: 13px; color: var(--secondary-text-color, #727272); }
   .status.warn { color: var(--warning-color, #ffa600); }
   .status.error { color: var(--error-color, #db4437); }
+  .menu-backdrop { position: fixed; inset: 0; z-index: 9; }
+  .menu-popup {
+    position: fixed;
+    top: calc(var(--header-height, 56px) + 4px);
+    right: 8px;
+    min-width: 230px;
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    background: var(--card-background-color, #fff);
+    border-radius: var(--ha-card-border-radius, 12px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.24);
+  }
+  .menu-item {
+    text-align: left;
+    border: 0;
+    background: none;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 14px;
+  }
+  .menu-item:hover { background: var(--secondary-background-color, #e5e5e5); }
+  .menu-item.danger { color: var(--error-color, #db4437); }
+  .view-title { font-size: 22px; font-weight: 400; margin: 0 0 var(--st-gap); }
   .backdrop {
     position: fixed;
     inset: 0;
@@ -504,6 +534,10 @@ const STYLE = `
   }
   .dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
 `;
+
+const SVG_OVERFLOW =
+  '<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">' +
+  '<path d="M12 16a2 2 0 1 1 0 4 2 2 0 0 1 0-4m0-6a2 2 0 1 1 0 4 2 2 0 0 1 0-4m0-6a2 2 0 1 1 0 4 2 2 0 0 1 0-4Z"/></svg>';
 
 const SVG_MENU =
   '<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">' +
@@ -741,6 +775,12 @@ class SchoolTimetablePanel extends HTMLElement {
         this.dispatchEvent(new CustomEvent("hass-toggle-menu", { bubbles: true, composed: true })),
     });
     menu.innerHTML = SVG_MENU;
+    const overflow = h("button", {
+      class: "menu",
+      title: _t(this._hass, "menu.title"),
+      onClick: () => this._openMenu(),
+    });
+    overflow.innerHTML = SVG_OVERFLOW;
     this._main = h("div", { class: "content" });
     this._dialogs = h("div");
     this.shadowRoot.replaceChildren(
@@ -749,11 +789,81 @@ class SchoolTimetablePanel extends HTMLElement {
         "div",
         { class: "toolbar" },
         menu,
-        h("div", { class: "grow", text: this._title() })
+        h("div", { class: "grow", text: this._title() }),
+        overflow
       ),
       this._main,
       this._dialogs
     );
+  }
+
+  // Actions live here rather than on the cards, matching the todo panel: the
+  // items are built on open, so they always match the current view.
+  _openMenu() {
+    const close = () => backdrop.remove();
+    const popup = h(
+      "div",
+      { class: "menu-popup", role: "menu" },
+      ...this._menuItems().map((item) =>
+        h("button", {
+          class: `menu-item ${item.danger ? "danger" : ""}`,
+          role: "menuitem",
+          text: item.label,
+          onClick: () => {
+            close();
+            item.run();
+          },
+        })
+      )
+    );
+    const backdrop = h(
+      "div",
+      {
+        class: "menu-backdrop",
+        onClick: close,
+        onKeydown: (event) => {
+          if (event.key === "Escape") close();
+        },
+      },
+      popup
+    );
+    this._dialogs.append(backdrop);
+    const first = popup.querySelector("button");
+    if (first) first.focus();
+  }
+
+  _menuItems() {
+    const items = [
+      { label: _t(this._hass, "kids.add_title"), run: () => this._addKid() },
+    ];
+    const kid = this._view === "kid" ? this._kid() : null;
+    if (!kid) return items;
+
+    const timetable = this._timetable();
+    items.push(
+      { label: _t(this._hass, "kids.rename_title"), run: () => this._renameKid(kid) },
+      { label: _t(this._hass, "timetable.add_title"), run: () => this._addTimetable(kid) }
+    );
+    if (timetable) {
+      items.push({
+        label: _t(this._hass, "timetable.edit_title"),
+        run: () => this._editTimetableDetails(kid, timetable),
+      });
+    }
+    items.push({ label: _t(this._hass, "days_off.add"), run: () => this._editDayOff(kid, null) });
+    if (timetable) {
+      items.push({
+        label: _t(this._hass, "timetable.delete_title"),
+        danger: true,
+        run: () => this._deleteTimetable(kid, timetable),
+      });
+    }
+    items.push({
+      label: _t(this._hass, "kids.delete_title"),
+      danger: true,
+      run: () => this._deleteKid(kid),
+    });
+    return items;
   }
 
   _title() {
@@ -920,28 +1030,11 @@ class SchoolTimetablePanel extends HTMLElement {
         h("div", { class: "card" }, h("p", { class: "empty", text: _t(this._hass, "kids.empty") })),
       ];
     }
-
-    const header = h(
-      "div",
-      { class: "card" },
-      h(
-        "div",
-        { class: "row spread" },
-        h("h2", { text: kid.name }),
-        h(
-          "div",
-          { class: "row" },
-          h("button", { text: _t(this._hass, "common.edit"), onClick: () => this._renameKid(kid) }),
-          h("button", {
-            class: "danger",
-            text: _t(this._hass, "common.delete"),
-            onClick: () => this._deleteKid(kid),
-          })
-        )
-      )
-    );
-
-    return [header, this._renderTimetableCard(kid), this._renderDaysOffCard(kid)];
+    return [
+      h("h1", { class: "view-title", text: kid.name }),
+      this._renderTimetableCard(kid),
+      this._renderDaysOffCard(kid),
+    ];
   }
 
   async _addKid() {
@@ -1011,19 +1104,7 @@ class SchoolTimetablePanel extends HTMLElement {
       "div",
       { class: "row spread" },
       h("h2", { text: _t(this._hass, "timetable.section") }),
-      h(
-        "div",
-        { class: "row" },
-        kid.timetables.length ? select : null,
-        h("button", { text: _t(this._hass, "timetable.add"), onClick: () => this._addTimetable(kid) }),
-        timetable
-          ? h("button", {
-              class: "danger",
-              text: _t(this._hass, "common.delete"),
-              onClick: () => this._deleteTimetable(kid, timetable),
-            })
-          : null
-      )
+      kid.timetables.length ? select : null
     );
 
     if (!timetable) {
@@ -1068,30 +1149,6 @@ class SchoolTimetablePanel extends HTMLElement {
 
   _renderEditor(kid) {
     const draft = this._draft;
-    const field = (label, type, value, onInput, extra) =>
-      h(
-        "label",
-        { class: "field" },
-        label,
-        h("input", { type, value, placeholder: (extra && extra.placeholder) || "", onInput })
-      );
-
-    const meta = h(
-      "div",
-      { class: "row" },
-      field(_t(this._hass, "timetable.label"), "text", draft.label, (event) => {
-        draft.label = event.target.value;
-        this._markDirty();
-      }, { placeholder: _t(this._hass, "timetable.label_placeholder") }),
-      field(_t(this._hass, "timetable.valid_from"), "date", draft.valid_from, (event) => {
-        draft.valid_from = event.target.value;
-        this._markDirty();
-      }),
-      field(_t(this._hass, "timetable.valid_to"), "date", draft.valid_to, (event) => {
-        draft.valid_to = event.target.value;
-        this._markDirty();
-      })
-    );
 
     const weekdays = this._showWeekend ? [0, 1, 2, 3, 4, 5, 6] : [0, 1, 2, 3, 4];
 
@@ -1166,7 +1223,6 @@ class SchoolTimetablePanel extends HTMLElement {
     });
 
     return [
-      meta,
       h(
         "div",
         { class: "row spread" },
@@ -1336,7 +1392,9 @@ class SchoolTimetablePanel extends HTMLElement {
     return clashes ? _t(this._hass, "timetable.range_overlap") : null;
   }
 
-  async _saveTimetable(kid) {
+  // The grid cells are keyed by row position; lessons take their period number
+  // from the row they sit in.
+  _draftPayload() {
     const draft = this._draft;
     const periods = draft.periods.map((period) => ({
       period: Number(period.period),
@@ -1351,6 +1409,11 @@ class SchoolTimetablePanel extends HTMLElement {
       if (!period || !subject) continue;
       lessons.push({ weekday: day, period: period.period, subject, week: cell.week || "every" });
     }
+    return { periods, lessons };
+  }
+
+  async _saveTimetable(kid) {
+    const draft = this._draft;
     await this._call({
       type: "school_timetable/timetable/save",
       kid_id: kid.id,
@@ -1359,8 +1422,57 @@ class SchoolTimetablePanel extends HTMLElement {
         label: draft.label,
         valid_from: draft.valid_from,
         valid_to: draft.valid_to || null,
-        periods,
-        lessons,
+        ...this._draftPayload(),
+      },
+    });
+    this._dirty = false;
+    this._draft = null;
+    this._render();
+  }
+
+  async _editTimetableDetails(kid, timetable) {
+    const values = await this._formDialog({
+      title: _t(this._hass, "timetable.edit_title"),
+      fields: [
+        {
+          key: "label",
+          label: _t(this._hass, "timetable.label"),
+          value: timetable.label,
+          required: true,
+          placeholder: _t(this._hass, "timetable.label_placeholder"),
+        },
+        {
+          key: "valid_from",
+          label: _t(this._hass, "timetable.valid_from"),
+          type: "date",
+          value: timetable.valid_from,
+          required: true,
+        },
+        {
+          key: "valid_to",
+          label: _t(this._hass, "timetable.valid_to"),
+          type: "date",
+          value: timetable.valid_to || "",
+        },
+      ],
+      validate: (input) => this._validateRange(input, timetable.id),
+    });
+    if (!values) return;
+
+    // Saving the details saves the grid with it, so an edit in progress is not
+    // silently thrown away.
+    const editing = this._dirty && this._draft && this._draft.id === timetable.id;
+    await this._call({
+      type: "school_timetable/timetable/save",
+      kid_id: kid.id,
+      timetable: {
+        id: timetable.id,
+        label: values.label,
+        valid_from: values.valid_from,
+        valid_to: values.valid_to || null,
+        ...(editing
+          ? this._draftPayload()
+          : { periods: timetable.periods, lessons: timetable.lessons }),
       },
     });
     this._dirty = false;
@@ -1437,12 +1549,7 @@ class SchoolTimetablePanel extends HTMLElement {
               h("tbody", {}, ...rows)
             )
           )
-        : h("p", { class: "empty", text: _t(this._hass, "days_off.empty") }),
-      h(
-        "div",
-        { class: "row" },
-        h("button", { text: _t(this._hass, "days_off.add"), onClick: () => this._editDayOff(kid, null) })
-      )
+        : h("p", { class: "empty", text: _t(this._hass, "days_off.empty") })
     );
   }
 
