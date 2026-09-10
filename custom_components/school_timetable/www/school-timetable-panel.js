@@ -400,72 +400,48 @@ const STYLE = `
     --st-gap: 16px;
     --sidepane-width: 250px;
   }
+  /* Mirrors ha-top-app-bar: a row of sections, navigation taking the space and
+     actions pinned to the end. There is no divider between them; the #title
+     rule that once set one to the pane width is dead code in the frontend. */
   .toolbar {
-    display: flex;
-    align-items: stretch;
     flex: 0 0 var(--header-height, 56px);
+    box-sizing: border-box;
     background: var(--app-header-background-color, var(--primary-color, #03a9f4));
     color: var(--app-header-text-color, #fff);
-    font-size: 20px;
-    font-weight: 400;
-    box-sizing: border-box;
   }
-  /* The bar is split over the pane and the content, so the divider between them
-     runs all the way to the top, as it does in the todo and calendar panels. */
-  .toolbar-pane {
+  .toolbar .row {
+    box-sizing: border-box;
+    width: 100%;
+    height: var(--header-height, 56px);
+    border-bottom: var(--app-header-border-bottom, none);
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 0 4px 0 16px;
-    box-sizing: border-box;
-    flex: 0 0 var(--sidepane-width, 250px);
-    width: var(--sidepane-width, 250px);
-    border-right: 1px solid rgba(255, 255, 255, 0.12);
-    border-inline-end: 1px solid rgba(255, 255, 255, 0.12);
-    border-inline-start: initial;
   }
-  .toolbar-main {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex: 1;
+  .toolbar .section {
+    box-sizing: border-box;
     min-width: 0;
-    padding: 0 8px 0 16px;
-  }
-  .title-host { display: flex; align-items: center; min-width: 0; }
-  .view-picker {
+    height: 100%;
+    padding: 0 var(--ha-space-3, 12px);
     display: flex;
     align-items: center;
-    gap: 4px;
-    border: 0;
-    background: none;
-    color: inherit;
-    font: inherit;
-    font-size: 20px;
-    padding: 6px 8px;
-    border-radius: 8px;
-    max-width: 60vw;
   }
-  .view-picker:hover { background: rgba(255, 255, 255, 0.12); }
-  /* ha-button's plain appearance takes its colour from this one token. */
-  ha-button.view-picker {
-    --wa-color-on-normal: var(--app-header-text-color, #fff);
-    --ha-button-height: 40px;
-    --ha-button-label-overflow: hidden;
-    max-width: 60vw;
-  }
-  ha-button.view-picker div {
+  .toolbar #navigation { flex: auto; }
+  .toolbar .section.end { flex: none; justify-content: flex-end; }
+  .toolbar .title {
+    min-width: 0;
+    display: block;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    font-size: var(--ha-font-size-xl, 20px);
+    font-weight: var(--ha-font-weight-normal, 400);
+    line-height: var(--header-height, 56px);
+    padding-inline-start: var(--ha-space-6, 24px);
   }
-  .view-picker span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .view-picker svg { width: 20px; height: 20px; flex: 0 0 auto; }
-  .app-title {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
+  /* Next to the navigation icon the title sits closer, as it does there. */
+  .toolbar .title.with-icon { padding-inline-start: var(--ha-space-2, 8px); }
+  /* Holding the picker it is a flex row, not a line of text. */
+  .toolbar .title.picker { display: flex; align-items: center; line-height: normal; }
   .menu {
     border: 0;
     background: none;
@@ -532,7 +508,6 @@ const STYLE = `
   .view { flex: 1; min-width: 0; height: 100%; overflow: auto; }
   .view-inner { max-width: 1100px; margin: 0 auto; padding: var(--st-gap) var(--st-gap) 88px; }
   @media (max-width: 700px) {
-    .toolbar-pane { flex: 0 0 auto; width: auto; border-inline-end: 0; }
     .layout { flex-direction: column; overflow: auto; }
     .nav {
       flex: 0 0 auto;
@@ -1131,11 +1106,15 @@ class SchoolTimetablePanel extends HTMLElement {
         { class: "toolbar" },
         h(
           "div",
-          { class: "toolbar-pane" },
-          this._sidebarToggle,
-          (this._titleHost = h("div", { class: "title-host" }))
-        ),
-        h("div", { class: "toolbar-main" }, h("div", { class: "grow" }), this._menuHost)
+          { class: "row" },
+          h(
+            "section",
+            { class: "section", id: "navigation" },
+            this._sidebarToggle,
+            (this._titleHost = h("span", { class: "title" }))
+          ),
+          h("section", { class: "section end", id: "actions", role: "toolbar" }, this._menuHost)
+        )
       ),
       this._main,
       this._dialogs
@@ -1424,8 +1403,10 @@ class SchoolTimetablePanel extends HTMLElement {
     this._updateMenu();
     const narrow = this._isNarrow();
     this._sidebarToggle.hidden = !narrow;
+    this._titleHost.classList.toggle("with-icon", narrow);
+    this._titleHost.classList.toggle("picker", narrow);
     this._titleHost.replaceChildren(
-      narrow ? this._renderViewPicker() : h("div", { class: "app-title", text: this._title() })
+      narrow ? this._renderViewPicker() : document.createTextNode(this._title())
     );
     this._main.replaceChildren(
       h(

@@ -77,11 +77,18 @@ itself with `height: 100vh; height: 100dvh`, the same pair Home Assistant uses
 for the iframe variant of a custom panel.
 
 The two-pane layout mirrors `ha-two-pane-top-app-bar-fixed`, the component the
-todo panel uses: `--sidepane-width` of 250px, the pane as a flex column with
-`border-inline-end`, its list scrolling under a bordered footer, and the top bar
-split so the divider between pane and content runs to the top of the window.
-Grep the frontend bundle in `hass_frontend/frontend_latest/` for `.pane{` to
-read the original.
+todo panel uses: `--sidepane-width` of 250px and the pane as a flex column with
+`border-inline-end`, its list scrolling under a bordered footer. Grep the
+frontend bundle in `hass_frontend/frontend_latest/` for `.pane{` to read the
+original.
+
+The bar itself copies `ha-top-app-bar`: `header > .row > section#navigation`
+(nav icon plus `span.title`, `flex: auto`) and `section#actions.section.end`.
+Sections pad `--ha-space-3`, the title `--ha-space-6`, or `--ha-space-2` when
+it follows an icon. The bar is **not** split at the pane width: that component
+still carries a `#title` rule setting a divider there, but nothing renders an
+element with that id any more, so it is dead code. Read the markup from a
+running instance before copying a rule out of the stylesheet.
 
 To check the layout without Home Assistant, drive the panel in Chrome through
 `puppeteer-core` (`executablePath` pointing at the installed Chrome) on a bare
