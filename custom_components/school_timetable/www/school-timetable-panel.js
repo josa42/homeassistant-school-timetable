@@ -605,6 +605,18 @@ const STYLE = `
   .fab svg { width: 20px; height: 20px; color: currentColor; }
   .menu-host { display: flex; align-items: center; }
   .menu-item { display: flex; align-items: center; gap: 16px; }
+  .menu-popup.anchored { top: auto; right: auto; }
+  .row-menu {
+    border: 0;
+    background: none;
+    padding: 4px;
+    border-radius: 50%;
+    line-height: 0;
+    color: var(--secondary-text-color, #727272);
+  }
+  .row-menu:hover { background: var(--secondary-background-color, #e5e5e5); }
+  .row-menu svg { width: 20px; height: 20px; display: block; }
+  td.row-actions { width: 1%; text-align: end; white-space: nowrap; }
   .menu-item svg { width: 20px; height: 20px; flex: 0 0 auto; color: var(--secondary-text-color, #727272); }
   .menu-item.danger svg { color: var(--error-color, #db4437); }
   .menu-divider {
@@ -722,6 +734,7 @@ class SchoolTimetablePanel extends HTMLElement {
     this._showWeekend = false;
     this._selected = new Set();
     this._kidTab = "timetable";
+    this._nativeMenu = false;
     this._status = null;
     this._subscribing = false;
     this._unsub = null;
@@ -978,6 +991,7 @@ class SchoolTimetablePanel extends HTMLElement {
       ]);
     }
     if (!customElements.get("ha-dropdown-item") || !this._menuHost.isConnected) return;
+    this._nativeMenu = true;
 
     const trigger = this._trigger();
     trigger.setAttribute("slot", "trigger");
@@ -990,13 +1004,44 @@ class SchoolTimetablePanel extends HTMLElement {
     dropdown.appendChild(trigger);
     this._dropdown = dropdown;
     this._menuHost.replaceChildren(dropdown);
-    this._updateMenu();
+    this._render();
   }
 
-  _trigger() {
-    const trigger = h("button", { class: "menu", title: _t(this._hass, "menu.title") });
+  _trigger(className = "menu") {
+    const trigger = h("button", { class: className, title: _t(this._hass, "menu.title") });
     trigger.innerHTML = SVG_OVERFLOW;
     return trigger;
+  }
+
+  // One dot-menu, used by the toolbar and by every table row. Falls back to the
+  // panel's own popup when Home Assistant's dropdown is not there.
+  _dotMenu(className, items) {
+    if (this._nativeMenu) {
+      const dropdown = document.createElement("ha-dropdown");
+      dropdown.addEventListener("wa-select", (event) => {
+        const value = event.detail?.item?.value;
+        const entry = items.find((item) => item.value === value);
+        if (entry) entry.run();
+      });
+      const trigger = this._trigger(className);
+      trigger.setAttribute("slot", "trigger");
+      dropdown.append(trigger, ...items.map((entry) => this._dropdownItem(entry)));
+      return dropdown;
+    }
+    const trigger = this._trigger(className);
+    trigger.addEventListener("click", () => this._openAnchoredMenu(trigger, items));
+    return trigger;
+  }
+
+  _dropdownItem(entry) {
+    if (entry.divider) return document.createElement("wa-divider");
+    const item = document.createElement("ha-dropdown-item");
+    item.value = entry.value;
+    if (entry.danger) item.setAttribute("variant", "danger");
+    const glyph = icon(entry.icon);
+    glyph.setAttribute("slot", "icon");
+    item.append(glyph, document.createTextNode(entry.label));
+    return item;
   }
 
   _installFallbackMenu() {
@@ -1009,31 +1054,25 @@ class SchoolTimetablePanel extends HTMLElement {
     const items = this._menuItems();
     if (this._menuHost) this._menuHost.hidden = items.length === 0;
     if (!this._dropdown) return;
-    const children = [this._dropdown.querySelector('[slot="trigger"]')];
-    for (const entry of items) {
-      if (entry.divider) {
-        children.push(document.createElement("wa-divider"));
-        continue;
-      }
-      const item = document.createElement("ha-dropdown-item");
-      item.value = entry.value;
-      if (entry.danger) item.setAttribute("variant", "danger");
-      const glyph = icon(entry.icon);
-      glyph.setAttribute("slot", "icon");
-      item.append(glyph, document.createTextNode(entry.label));
-      children.push(item);
-    }
-    this._dropdown.replaceChildren(...children);
+    this._dropdown.replaceChildren(
+      this._dropdown.querySelector('[slot="trigger"]'),
+      ...items.map((entry) => this._dropdownItem(entry))
+    );
   }
 
   // Actions live here rather than on the cards, matching the todo panel: the
   // items are built on open, so they always match the current view.
   _openMenu() {
+    const trigger = this._menuHost.querySelector("button");
+    this._openAnchoredMenu(trigger, this._menuItems());
+  }
+
+  _openAnchoredMenu(anchor, items) {
     const close = () => backdrop.remove();
     const popup = h(
       "div",
       { class: "menu-popup", role: "menu" },
-      ...this._menuItems().map((item) =>
+      ...items.map((item) =>
         item.divider
           ? h("div", { class: "menu-divider" })
           : h(
@@ -1063,8 +1102,20 @@ class SchoolTimetablePanel extends HTMLElement {
       popup
     );
     this._dialogs.append(backdrop);
+    this._placeMenu(popup, anchor);
     const first = popup.querySelector("button");
     if (first) first.focus();
+  }
+
+  _placeMenu(popup, anchor) {
+    if (!anchor || !anchor.getBoundingClientRect) return;
+    const rect = anchor.getBoundingClientRect();
+    const width = popup.offsetWidth;
+    const height = popup.offsetHeight;
+    const room = window.innerHeight - rect.bottom;
+    popup.classList.add("anchored");
+    popup.style.left = `${Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8))}px`;
+    popup.style.top = room < height + 8 ? `${Math.max(8, rect.top - height - 4)}px` : `${rect.bottom + 4}px`;
   }
 
   _menuItems() {
@@ -1264,12 +1315,20 @@ class SchoolTimetablePanel extends HTMLElement {
         {},
         h(
           "td",
-          {},
+          { class: "grow" },
           h("button", {
             class: "link",
             text: `${fmtTime(this._hass, period.start)} – ${fmtTime(this._hass, period.end)}`,
             onClick: () => this._editDefaultPeriod(index),
           })
+        ),
+        h(
+          "td",
+          { class: "row-actions" },
+          this._rowMenu(
+            () => this._editDefaultPeriod(index),
+            () => this._deleteDefaultPeriod(index)
+          )
         )
       )
     );
@@ -1288,15 +1347,42 @@ class SchoolTimetablePanel extends HTMLElement {
     ];
   }
 
+  _rowMenu(onEdit, onDelete) {
+    return this._dotMenu("row-menu", [
+      { value: "edit", icon: "pencil", label: _t(this._hass, "common.edit"), run: onEdit },
+      {
+        value: "delete",
+        icon: "delete",
+        danger: true,
+        label: _t(this._hass, "common.delete"),
+        run: onDelete,
+      },
+    ]);
+  }
+
+  _defaultPeriods() {
+    return ((this._data.settings && this._data.settings.default_periods) || []).map((period) => ({
+      ...period,
+    }));
+  }
+
   async _editDefaultPeriod(index) {
-    const periods = ((this._data.settings && this._data.settings.default_periods) || []).map(
-      (period) => ({ ...period })
-    );
+    const periods = this._defaultPeriods();
     const values = await this._periodDialog(periods, index);
     if (!values) return;
     if (values.__deleted) periods.splice(index, 1);
     else if (index === null) periods.push({ start: values.start, end: values.end });
     else Object.assign(periods[index], { start: values.start, end: values.end });
+    await this._saveDefaultPeriods(periods);
+  }
+
+  async _deleteDefaultPeriod(index) {
+    const periods = this._defaultPeriods();
+    periods.splice(index, 1);
+    await this._saveDefaultPeriods(periods);
+  }
+
+  async _saveDefaultPeriods(periods) {
     periods.sort((left, right) => left.start.localeCompare(right.start));
     await this._call({
       type: "school_timetable/settings/set",
@@ -1831,20 +1917,10 @@ class SchoolTimetablePanel extends HTMLElement {
         h("td", { class: "grow", text: entry.reason }),
         h(
           "td",
-          {},
-          h(
-            "div",
-            { class: "row" },
-            h("button", {
-              class: "icon",
-              text: _t(this._hass, "common.edit"),
-              onClick: () => this._editDayOff(kid, entry),
-            }),
-            h("button", {
-              class: "icon danger",
-              text: "✕",
-              onClick: () => this._saveDaysOff(kid, kid.days_off.filter((other) => other !== entry)),
-            })
+          { class: "row-actions" },
+          this._rowMenu(
+            () => this._editDayOff(kid, entry),
+            () => this._saveDaysOff(kid, kid.days_off.filter((other) => other !== entry))
           )
         )
       )
@@ -1950,20 +2026,10 @@ class SchoolTimetablePanel extends HTMLElement {
         ),
         h(
           "td",
-          {},
-          h(
-            "div",
-            { class: "row" },
-            h("button", {
-              class: "icon",
-              text: _t(this._hass, "common.edit"),
-              onClick: () => this._editClosedDay(entry),
-            }),
-            h("button", {
-              class: "icon danger",
-              text: "✕",
-              onClick: () => this._deleteClosedDay(entry),
-            })
+          { class: "row-actions" },
+          this._rowMenu(
+            () => this._editClosedDay(entry),
+            () => this._deleteClosedDay(entry)
           )
         )
       )
@@ -2168,6 +2234,7 @@ class SchoolTimetablePanel extends HTMLElement {
     );
     this._selected = new Set();
     this._kidTab = "timetable";
+    this._nativeMenu = false;
   }
 
   async _replaceInSelected() {
