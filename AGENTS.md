@@ -100,6 +100,13 @@ panel name over the pane and nothing else, because that panel puts the selected
 list's name on the card rather than in the bar. The kid's name is the timetable
 card's heading for the same reason.
 
+Below `NARROW_QUERY` the pane is dropped and its contents move into a picker in
+the toolbar, the way the todo panel swaps its title for a dropdown of lists when
+narrow. Both come from `_navItems()`, so a new nav entry appears in both places.
+The panel watches its own `matchMedia` rather than trusting only the `narrow`
+property, because that property tracks Home Assistant's breakpoint and not this
+panel's. Keep `NARROW_QUERY` and the media query in `STYLE` in step.
+
 The overflow menu tries for the real thing: `_setupMenu` installs the panel's
 own menu first, then calls `window.loadCardHelpers()` and, if
 `ha-dropdown-item` turns up within two seconds, replaces it with `ha-dropdown`

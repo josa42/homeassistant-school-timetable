@@ -12,6 +12,10 @@ const PANEL_VERSION = "1.0.0";
 // How long to wait for Home Assistant's menu elements before keeping our own.
 const MENU_UPGRADE_TIMEOUT = 2000;
 
+// Below this the pane gives way to a picker in the toolbar, the way the todo
+// panel drops its pane. Kept in step with the media query in STYLE.
+const NARROW_QUERY = "(max-width: 700px)";
+
 // Home Assistant only ships a fixed set of translation categories to the
 // frontend, and a custom key like `panel.*` is not one of them, so
 // hass.localize would always miss. The table below is the real source; the
@@ -252,6 +256,7 @@ const MDI = {
   calendar:
     "M19,19H5V8H19M19,3H18V1H16V3H8V1H6V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5A2,2 0 0,0 19,3Z",
   upload: "M9,16V10H5L12,3L19,10H15V16H9M5,20V18H19V20H5Z",
+  chevron: "M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z",
   pencil:
     "M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z",
   delete: "M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z",
@@ -417,6 +422,23 @@ const STYLE = `
     min-width: 0;
     padding: 0 8px 0 16px;
   }
+  .title-host { display: flex; align-items: center; min-width: 0; }
+  .view-picker {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    font-size: 20px;
+    padding: 6px 8px;
+    border-radius: 8px;
+    max-width: 60vw;
+  }
+  .view-picker:hover { background: rgba(255, 255, 255, 0.12); }
+  .view-picker span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .view-picker svg { width: 20px; height: 20px; flex: 0 0 auto; }
   .app-title {
     overflow: hidden;
     text-overflow: ellipsis;
@@ -750,7 +772,13 @@ class SchoolTimetablePanel extends HTMLElement {
   }
 
   set narrow(value) {
+    const changed = this._narrow !== value;
     this._narrow = value;
+    if (changed) this._render();
+  }
+
+  _isNarrow() {
+    return Boolean(this._narrow || (this._mql && this._mql.matches));
   }
 
   set panel(value) {
@@ -758,11 +786,20 @@ class SchoolTimetablePanel extends HTMLElement {
   }
 
   connectedCallback() {
+    if (!this._mql && typeof window.matchMedia === "function") {
+      this._mql = window.matchMedia(NARROW_QUERY);
+      this._onNarrowChange = () => this._render();
+      this._mql.addEventListener("change", this._onNarrowChange);
+    }
     if (this._hass && !this._unsub && !this._subscribing) this._subscribe();
     this._render();
   }
 
   disconnectedCallback() {
+    if (this._mql) {
+      this._mql.removeEventListener("change", this._onNarrowChange);
+      this._mql = null;
+    }
     if (this._unsub) {
       this._unsub();
       this._unsub = null;
@@ -963,7 +1000,7 @@ class SchoolTimetablePanel extends HTMLElement {
       h(
         "div",
         { class: "toolbar" },
-        h("div", { class: "toolbar-pane" }, menu, h("div", { class: "app-title", text: this._title() })),
+        h("div", { class: "toolbar-pane" }, menu, (this._titleHost = h("div", { class: "title-host" }))),
         h("div", { class: "toolbar-main" }, h("div", { class: "grow" }), this._menuHost)
       ),
       this._main,
@@ -1015,7 +1052,7 @@ class SchoolTimetablePanel extends HTMLElement {
 
   // One dot-menu, used by the toolbar and by every table row. Falls back to the
   // panel's own popup when Home Assistant's dropdown is not there.
-  _dotMenu(className, items) {
+  _dotMenu(trigger, items) {
     if (this._nativeMenu) {
       const dropdown = document.createElement("ha-dropdown");
       dropdown.addEventListener("wa-select", (event) => {
@@ -1023,12 +1060,10 @@ class SchoolTimetablePanel extends HTMLElement {
         const entry = items.find((item) => item.value === value);
         if (entry) entry.run();
       });
-      const trigger = this._trigger(className);
       trigger.setAttribute("slot", "trigger");
       dropdown.append(trigger, ...items.map((entry) => this._dropdownItem(entry)));
       return dropdown;
     }
-    const trigger = this._trigger(className);
     trigger.addEventListener("click", () => this._openAnchoredMenu(trigger, items));
     return trigger;
   }
@@ -1230,11 +1265,15 @@ class SchoolTimetablePanel extends HTMLElement {
     }
 
     this._updateMenu();
+    const narrow = this._isNarrow();
+    this._titleHost.replaceChildren(
+      narrow ? this._renderViewPicker() : h("div", { class: "app-title", text: this._title() })
+    );
     this._main.replaceChildren(
       h(
         "div",
         { class: "layout" },
-        this._renderNav(),
+        narrow ? null : this._renderNav(),
         h(
           "div",
           { class: "view" },
@@ -1268,17 +1307,68 @@ class SchoolTimetablePanel extends HTMLElement {
     this._render();
   }
 
+  _navItems() {
+    const items = this._data.kids.map((kid) => ({
+      value: `kid:${kid.id}`,
+      icon: "account",
+      label: kid.name,
+      active: this._view === "kid" && this._kidId === kid.id,
+      run: () => this._show("kid", kid.id),
+    }));
+    items.push(
+      { divider: true },
+      {
+        value: "nav-kid-add",
+        icon: "plus",
+        label: _t(this._hass, "kids.add"),
+        run: () => this._addKid(),
+      },
+      {
+        value: "nav-closed",
+        icon: "calendar",
+        label: _t(this._hass, "nav.closed"),
+        active: this._view === "closed",
+        run: () => this._show("closed"),
+      },
+      {
+        value: "nav-settings",
+        icon: "cog",
+        label: _t(this._hass, "nav.settings"),
+        active: this._view === "settings",
+        run: () => this._show("settings"),
+      }
+    );
+    return items;
+  }
+
+  _viewLabel() {
+    const item = this._navItems().find((entry) => entry.active);
+    return item ? item.label : this._title();
+  }
+
+  // Narrow screens lose the pane and pick the view from the toolbar instead.
+  _renderViewPicker() {
+    const trigger = h(
+      "button",
+      { class: "view-picker" },
+      h("span", { text: this._viewLabel() }),
+      icon("chevron")
+    );
+    return this._dotMenu(trigger, this._navItems());
+  }
+
   _renderNav() {
-    const item = (mdi, label, active, onClick) =>
+    const entries = this._navItems();
+    const row = (entry) =>
       h(
         "button",
         {
           class: "nav-item",
-          "aria-current": active ? "page" : null,
-          onClick,
+          "aria-current": entry.active ? "page" : null,
+          onClick: entry.run,
         },
-        icon(mdi),
-        h("span", { text: label })
+        icon(entry.icon),
+        h("span", { text: entry.label })
       );
 
     return h(
@@ -1287,22 +1377,14 @@ class SchoolTimetablePanel extends HTMLElement {
       h(
         "div",
         { class: "nav-kids" },
-        ...this._data.kids.map((kid) =>
-          item("account", kid.name, this._view === "kid" && this._kidId === kid.id, () =>
-            this._show("kid", kid.id)
-          )
-        )
+        ...entries.filter((entry) => entry.value?.startsWith("kid:")).map(row)
       ),
       h(
         "div",
         { class: "nav-bottom" },
-        item("plus", _t(this._hass, "kids.add"), false, () => this._addKid()),
-        item("calendar", _t(this._hass, "nav.closed"), this._view === "closed", () =>
-          this._show("closed")
-        ),
-        item("cog", _t(this._hass, "nav.settings"), this._view === "settings", () =>
-          this._show("settings")
-        )
+        ...entries
+          .filter((entry) => !entry.divider && !entry.value.startsWith("kid:"))
+          .map(row)
       )
     );
   }
@@ -1348,7 +1430,7 @@ class SchoolTimetablePanel extends HTMLElement {
   }
 
   _rowMenu(onEdit, onDelete) {
-    return this._dotMenu("row-menu", [
+    return this._dotMenu(this._trigger("row-menu"), [
       { value: "edit", icon: "pencil", label: _t(this._hass, "common.edit"), run: onEdit },
       {
         value: "delete",
