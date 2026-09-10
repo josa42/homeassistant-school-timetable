@@ -1254,15 +1254,18 @@ class SchoolTimetablePanel extends HTMLElement {
       const element = document.createElement("ha-select");
       element.options = options;
       element.value = value;
-      // ha-select is controlled: it reports the new value in the event and
-      // leaves its own property alone, so read the detail and write it back.
+      // ha-select reports a choice as "selected", not the usual value-changed,
+      // and never writes its own value: it expects the owner to hand it back.
+      // Listening only for value-changed leaves the select inert on a click.
       const handler = (event) => {
-        const next = event.detail?.value ?? element.value ?? "";
+        event.stopPropagation();
+        const next = event.detail?.value ?? "";
+        if (String(next) === String(element.value)) return;
         element.value = next;
         onChange(String(next));
       };
+      element.addEventListener("selected", handler);
       element.addEventListener("value-changed", handler);
-      element.addEventListener("change", handler);
       return element;
     }
     return h(
