@@ -25,6 +25,10 @@ const STRINGS = {
     "common.name": "Name",
     "common.loading": "Loading…",
     "common.not_set_up": "School Timetable is not set up yet. Add the integration under Settings → Devices & Services.",
+    "error.cannot_connect": "Cannot reach Home Assistant.",
+    "error.invalid_auth": "Not authorised.",
+    "error.connection_lost": "Connection to Home Assistant lost. Reload the page.",
+    "error.unknown": "Something went wrong.",
     "kids.add": "Add kid",
     "kids.add_title": "Add kid",
     "kids.rename_title": "Rename kid",
@@ -98,6 +102,10 @@ const STRINGS = {
     "common.name": "Name",
     "common.loading": "Wird geladen…",
     "common.not_set_up": "Stundenplan ist noch nicht eingerichtet. Integration unter Einstellungen → Geräte & Dienste hinzufügen.",
+    "error.cannot_connect": "Home Assistant ist nicht erreichbar.",
+    "error.invalid_auth": "Keine Berechtigung.",
+    "error.connection_lost": "Verbindung zu Home Assistant verloren. Seite neu laden.",
+    "error.unknown": "Etwas ist schiefgelaufen.",
     "kids.add": "Kind hinzufügen",
     "kids.add_title": "Kind hinzufügen",
     "kids.rename_title": "Kind umbenennen",
@@ -171,6 +179,24 @@ const DEFAULT_PERIODS = [
   { period: 5, start: "11:50", end: "12:35" },
   { period: 6, start: "12:40", end: "13:25" },
 ];
+
+// home-assistant-js-websocket rejects with a bare numeric code when the
+// connection itself fails, and with {code, message} for command errors. Neither
+// is something to put in front of a person unfiltered.
+const WS_ERROR_CODES = {
+  1: "error.cannot_connect",
+  2: "error.invalid_auth",
+  3: "error.connection_lost",
+  not_found: "common.not_set_up",
+  unauthorized: "error.invalid_auth",
+};
+
+function _errorText(hass, err) {
+  const code = err && typeof err === "object" ? err.code : err;
+  if (WS_ERROR_CODES[code]) return _t(hass, WS_ERROR_CODES[code]);
+  if (err && typeof err === "object" && err.message) return err.message;
+  return _t(hass, "error.unknown");
+}
 
 function _t(hass, key, params) {
   const lang = ((hass && hass.language) || "en").split("-")[0];
@@ -432,7 +458,7 @@ class SchoolTimetablePanel extends HTMLElement {
         { type: "school_timetable/subscribe" }
       );
     } catch (err) {
-      this._error = err && err.message ? err.message : String(err);
+      this._error = _errorText(this._hass, err);
       this._render();
     } finally {
       this._subscribing = false;
@@ -466,7 +492,7 @@ class SchoolTimetablePanel extends HTMLElement {
     try {
       return await this._hass.callWS(message);
     } catch (err) {
-      this._setStatus(err && err.message ? err.message : String(err), "error");
+      this._setStatus(_errorText(this._hass, err), "error");
       throw err;
     }
   }
@@ -665,9 +691,9 @@ class SchoolTimetablePanel extends HTMLElement {
         tab("closed", _t(this._hass, "nav.closed"))
       ),
       ...(this._tab === "kids" ? this._renderKidsTab() : this._renderClosedTab()),
-      this._status
-        ? h("p", { class: `status ${this._status.kind}`, text: this._status.text })
-        : null
+      ...(this._status
+        ? [h("p", { class: `status ${this._status.kind}`, text: this._status.text })]
+        : [])
     );
   }
 
@@ -1370,7 +1396,7 @@ class SchoolTimetablePanel extends HTMLElement {
       );
     } catch (err) {
       this._setStatus(
-        _t(this._hass, "import.failed", { error: err && err.message ? err.message : String(err) }),
+        _t(this._hass, "import.failed", { error: _errorText(this._hass, err) }),
         "error"
       );
     }
