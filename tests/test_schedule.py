@@ -65,7 +65,7 @@ def test_open_ended_timetable_keeps_going() -> None:
 
 
 def test_latest_valid_from_wins_when_ranges_overlap() -> None:
-    """A mid-year replacement takes over from the plan it supersedes."""
+    """The store refuses overlaps, but a hand-edited file still has to resolve."""
     raw = sample_data()
     raw["kids"][0]["timetables"].append(
         {

@@ -26,6 +26,10 @@ class NotFound(Exception):
     """Raised when a kid or timetable id does not exist."""
 
 
+class Overlap(Exception):
+    """Raised when a timetable's validity range covers another one's."""
+
+
 class SchoolTimetableStore:
     """Loads, mutates and persists the school timetable document."""
 
@@ -97,11 +101,25 @@ class SchoolTimetableStore:
     # --- timetables ------------------------------------------------------
 
     async def async_save_timetable(self, kid_id: str, raw: dict[str, Any]) -> Timetable:
-        """Create or replace a timetable. An unknown or missing id creates one."""
+        """Create or replace a timetable. An unknown or missing id creates one.
+
+        Validity ranges may not overlap: two timetables covering one date would
+        make the generated day depend on tie-breaking rules nobody can see.
+        """
         kid = self._kid(kid_id)
         timetable = Timetable.from_dict({**raw, "id": raw.get("id") or new_id()})
         if timetable is None:
             raise ValueError("Invalid timetable")
+        clash = next(
+            (
+                other
+                for other in kid.timetables
+                if other.id != timetable.id and _ranges_overlap(timetable, other)
+            ),
+            None,
+        )
+        if clash is not None:
+            raise Overlap(f"Overlaps the timetable {clash.label or clash.id}")
         for index, existing in enumerate(kid.timetables):
             if existing.id == timetable.id:
                 kid.timetables[index] = timetable
@@ -173,6 +191,15 @@ class SchoolTimetableStore:
         await self.async_save()
         _LOGGER.debug("Imported holidays: %s added, %s updated", added, updated)
         return added, updated
+
+
+def _ranges_overlap(left: Timetable, right: Timetable) -> bool:
+    """Whether two validity ranges share a date. `valid_to` of None is open-ended."""
+    if left.valid_to is not None and right.valid_from > left.valid_to:
+        return False
+    if right.valid_to is not None and left.valid_from > right.valid_to:
+        return False
+    return True
 
 
 def _match_by_value(entries: list[ClosedDay], holiday: ImportedHoliday) -> ClosedDay | None:
