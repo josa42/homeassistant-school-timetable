@@ -17,6 +17,9 @@ const STRINGS = {
   en: {
     "nav.kids": "Kids",
     "nav.closed": "Holidays",
+    "nav.settings": "Settings",
+    "settings.default_times": "Default lesson times",
+    "settings.hint": "The times a new timetable starts from. Changing them leaves existing timetables alone.",
     "common.cancel": "Cancel",
     "common.save": "Save",
     "common.delete": "Delete",
@@ -95,6 +98,9 @@ const STRINGS = {
   de: {
     "nav.kids": "Kinder",
     "nav.closed": "Ferien",
+    "nav.settings": "Einstellungen",
+    "settings.default_times": "Standard-Stundenzeiten",
+    "settings.hint": "Die Zeiten, mit denen ein neuer Stundenplan startet. Bestehende Stundenpläne bleiben unverändert.",
     "common.cancel": "Abbrechen",
     "common.save": "Speichern",
     "common.delete": "Löschen",
@@ -334,8 +340,52 @@ const STYLE = `
     line-height: 0;
   }
   .menu:hover { background: rgba(255, 255, 255, 0.12); }
-  .content { padding: var(--st-gap); max-width: 1100px; margin: 0 auto; }
-  .tabs { display: flex; gap: 8px; margin-bottom: var(--st-gap); flex-wrap: wrap; }
+  .content { height: calc(100% - var(--header-height, 56px)); }
+  .layout { display: flex; align-items: stretch; height: 100%; }
+  .nav {
+    flex: 0 0 220px;
+    display: flex;
+    flex-direction: column;
+    background: var(--card-background-color, #fff);
+    border-right: 1px solid var(--divider-color, #e0e0e0);
+  }
+  .nav-kids { flex: 1; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 2px; }
+  .nav-bottom {
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    border-top: 1px solid var(--divider-color, #e0e0e0);
+  }
+  .nav-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--secondary-text-color, #727272);
+    margin: 4px 12px 6px;
+  }
+  .nav-item {
+    text-align: left;
+    border: 0;
+    background: none;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 14px;
+  }
+  .nav-item:hover { background: var(--secondary-background-color, #e5e5e5); }
+  .nav-item[aria-current="page"] {
+    background: var(--primary-color, #03a9f4);
+    color: var(--text-primary-color, #fff);
+  }
+  .view { flex: 1; min-width: 0; overflow-y: auto; padding: var(--st-gap); }
+  .view-inner { max-width: 1100px; margin: 0 auto; }
+  @media (max-width: 700px) {
+    .layout { flex-direction: column; height: auto; }
+    .nav { flex: none; flex-direction: row; border-right: 0;
+      border-bottom: 1px solid var(--divider-color, #e0e0e0); }
+    .nav-kids, .nav-bottom { flex-direction: row; overflow-x: auto; border-top: 0; }
+    .nav-label { display: none; }
+  }
   .card {
     background: var(--card-background-color, #fff);
     border-radius: var(--ha-card-border-radius, 12px);
@@ -465,7 +515,7 @@ class SchoolTimetablePanel extends HTMLElement {
     this.attachShadow({ mode: "open" });
     this._data = null;
     this._error = null;
-    this._tab = "kids";
+    this._view = "kid";
     this._kidId = null;
     this._timetableId = null;
     this._draft = null;
@@ -728,49 +778,148 @@ class SchoolTimetablePanel extends HTMLElement {
       return;
     }
 
-    const tab = (id, label) =>
-      h("button", {
-        class: "chip",
-        "aria-pressed": this._tab === id ? "true" : "false",
-        text: label,
-        onClick: () => {
-          this._tab = id;
-          this._render();
-        },
-      });
-
     this._main.replaceChildren(
       h(
         "div",
-        { class: "tabs" },
-        tab("kids", _t(this._hass, "nav.kids")),
-        tab("closed", _t(this._hass, "nav.closed"))
-      ),
-      ...(this._tab === "kids" ? this._renderKidsTab() : this._renderClosedTab()),
-      ...(this._status
-        ? [h("p", { class: `status ${this._status.kind}`, text: this._status.text })]
-        : [])
+        { class: "layout" },
+        this._renderNav(),
+        h(
+          "div",
+          { class: "view" },
+          h(
+            "div",
+            { class: "view-inner" },
+            ...this._renderView(),
+            ...(this._status
+              ? [h("p", { class: `status ${this._status.kind}`, text: this._status.text })]
+              : [])
+          )
+        )
+      )
     );
+  }
+
+  _renderView() {
+    if (this._view === "closed") return this._renderClosedView();
+    if (this._view === "settings") return this._renderSettingsView();
+    return this._renderKidView();
+  }
+
+  _show(view, kidId) {
+    this._view = view;
+    if (kidId !== undefined) {
+      this._kidId = kidId;
+      this._timetableId = null;
+      this._draft = null;
+      this._dirty = false;
+    }
+    this._render();
+  }
+
+  _renderNav() {
+    const item = (label, active, onClick) =>
+      h("button", {
+        class: "nav-item",
+        "aria-current": active ? "page" : null,
+        text: label,
+        onClick,
+      });
+
+    return h(
+      "div",
+      { class: "nav" },
+      h(
+        "div",
+        { class: "nav-kids" },
+        h("p", { class: "nav-label", text: _t(this._hass, "nav.kids") }),
+        ...this._data.kids.map((kid) =>
+          item(kid.name, this._view === "kid" && this._kidId === kid.id, () =>
+            this._show("kid", kid.id)
+          )
+        )
+      ),
+      h(
+        "div",
+        { class: "nav-bottom" },
+        item(`+ ${_t(this._hass, "kids.add")}`, false, () => this._addKid()),
+        item(_t(this._hass, "nav.closed"), this._view === "closed", () => this._show("closed")),
+        item(_t(this._hass, "nav.settings"), this._view === "settings", () =>
+          this._show("settings")
+        )
+      )
+    );
+  }
+
+  _renderSettingsView() {
+    const periods = (this._data.settings && this._data.settings.default_periods) || [];
+    const rows = periods.map((period, index) =>
+      h(
+        "tr",
+        {},
+        h(
+          "td",
+          {},
+          h("button", {
+            class: "link",
+            text: `${fmtTime(this._hass, period.start)} – ${fmtTime(this._hass, period.end)}`,
+            onClick: () => this._editDefaultPeriod(index),
+          })
+        )
+      )
+    );
+
+    return [
+      h(
+        "div",
+        { class: "card" },
+        h("h2", { text: _t(this._hass, "settings.default_times") }),
+        h("p", { class: "hint", text: _t(this._hass, "settings.hint") }),
+        rows.length
+          ? h("div", { class: "scroll" }, h("table", {}, h("tbody", {}, ...rows)))
+          : h("p", { class: "empty", text: _t(this._hass, "timetable.no_periods") }),
+        h(
+          "div",
+          { class: "row" },
+          h("button", {
+            text: _t(this._hass, "timetable.add_period"),
+            onClick: () => this._editDefaultPeriod(null),
+          })
+        )
+      ),
+    ];
+  }
+
+  async _editDefaultPeriod(index) {
+    const periods = ((this._data.settings && this._data.settings.default_periods) || []).map(
+      (period) => ({ ...period })
+    );
+    const values = await this._periodDialog(periods, index);
+    if (!values) return;
+    if (values.__deleted) periods.splice(index, 1);
+    else if (index === null) periods.push({ start: values.start, end: values.end });
+    else Object.assign(periods[index], { start: values.start, end: values.end });
+    periods.sort((left, right) => left.start.localeCompare(right.start));
+    await this._call({
+      type: "school_timetable/settings/set",
+      settings: {
+        default_periods: periods.map((period, position) => ({
+          period: position + 1,
+          start: period.start,
+          end: period.end,
+        })),
+      },
+    });
   }
 
   // --- kids ------------------------------------------------------------
 
-  _renderKidsTab() {
+  _renderKidView() {
     const kid = this._kid();
-    const chips = this._data.kids.map((entry) =>
-      h("button", {
-        class: "chip",
-        "aria-pressed": kid && entry.id === kid.id ? "true" : "false",
-        text: entry.name,
-        onClick: () => {
-          this._kidId = entry.id;
-          this._timetableId = null;
-          this._draft = null;
-          this._dirty = false;
-          this._render();
-        },
-      })
-    );
+    if (!kid) {
+      return [
+        h("div", { class: "card" }, h("p", { class: "empty", text: _t(this._hass, "kids.empty") })),
+      ];
+    }
 
     const header = h(
       "div",
@@ -778,30 +927,20 @@ class SchoolTimetablePanel extends HTMLElement {
       h(
         "div",
         { class: "row spread" },
+        h("h2", { text: kid.name }),
         h(
           "div",
           { class: "row" },
-          ...chips,
-          h("button", { text: _t(this._hass, "kids.add"), onClick: () => this._addKid() })
-        ),
-        kid
-          ? h(
-              "div",
-              { class: "row" },
-              h("button", { text: _t(this._hass, "common.edit"), onClick: () => this._renameKid(kid) }),
-              h("button", {
-                class: "danger",
-                text: _t(this._hass, "common.delete"),
-                onClick: () => this._deleteKid(kid),
-              })
-            )
-          : null
+          h("button", { text: _t(this._hass, "common.edit"), onClick: () => this._renameKid(kid) }),
+          h("button", {
+            class: "danger",
+            text: _t(this._hass, "common.delete"),
+            onClick: () => this._deleteKid(kid),
+          })
+        )
       )
     );
 
-    if (!kid) {
-      return [header, h("div", { class: "card" }, h("p", { class: "empty", text: _t(this._hass, "kids.empty") }))];
-    }
     return [header, this._renderTimetableCard(kid), this._renderDaysOffCard(kid)];
   }
 
@@ -1069,11 +1208,17 @@ class SchoolTimetablePanel extends HTMLElement {
   }
 
   async _editPeriod(index) {
-    const draft = this._draft;
-    const existing = index === null ? null : draft.periods[index];
-    const last = draft.periods[draft.periods.length - 1];
+    const values = await this._periodDialog(this._draft.periods, index);
+    if (!values) return;
+    if (values.__deleted) this._removePeriod(index);
+    else this._writePeriod(index, values);
+  }
+
+  _periodDialog(periods, index) {
+    const existing = index === null ? null : periods[index];
+    const last = periods[periods.length - 1];
     const start = existing ? existing.start : last ? addMinutes(last.end, 5) : "08:00";
-    const values = await this._formDialog({
+    return this._formDialog({
       title: _t(this._hass, "timetable.period"),
       fields: [
         {
@@ -1092,17 +1237,14 @@ class SchoolTimetablePanel extends HTMLElement {
         },
       ],
       deletable: existing !== null,
-      validate: (input) => this._validatePeriod(input, index),
+      validate: (input) => this._validatePeriod(periods, input, index),
     });
-    if (!values) return;
-    if (values.__deleted) this._removePeriod(index);
-    else this._writePeriod(index, values);
   }
 
-  _validatePeriod({ start, end }, index) {
+  _validatePeriod(periods, { start, end }, index) {
     // "HH:MM" compares correctly as a string, which is why times are stored that way.
     if (end <= start) return _t(this._hass, "timetable.end_before_start");
-    const clashes = this._draft.periods.some(
+    const clashes = periods.some(
       (period, position) => position !== index && start < period.end && end > period.start
     );
     return clashes ? _t(this._hass, "timetable.overlap") : null;
@@ -1333,7 +1475,7 @@ class SchoolTimetablePanel extends HTMLElement {
 
   // --- holidays --------------------------------------------------------
 
-  _renderClosedTab() {
+  _renderClosedView() {
     const entries = this._data.closed_days;
     const rows = entries.map((entry) =>
       h(

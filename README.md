@@ -6,7 +6,8 @@ day and the day's lessons in the event description.
 
 Everything is edited in a **Stundenplan** panel in the sidebar: kids, their
 weekly grids, and the shared list of school and public holidays. Holidays can be
-typed in or imported from an ICS file.
+typed in or imported from an ICS file. The panel lists the kids down the left,
+with Ferien and Settings underneath them.
 
 ## What it generates
 
@@ -60,7 +61,10 @@ Open **Stundenplan** in the sidebar.
    starts empty, with the default lesson times from Settings.
 3. **Fill in the subjects.** Click a row's times to change, add or remove a
    period. Save.
-4. **Add holidays** on the Ferien tab, by hand or by importing an ICS file.
+4. **Add holidays** under Ferien, by hand or by importing an ICS file.
+
+Under Settings, the default lesson times decide what a new timetable starts
+from.
 
 ### Timetables and dates
 
