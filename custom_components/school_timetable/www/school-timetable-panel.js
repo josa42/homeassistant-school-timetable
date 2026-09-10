@@ -726,14 +726,15 @@ const STYLE = `
   table.cal th { text-align: center; font-size: 13px; padding-bottom: 0; }
   table.cal td { border-top: 0; padding: 0; }
   table.cal .cal-times {
-    width: 62px;
+    width: 22px;
     white-space: nowrap;
     text-align: end;
     vertical-align: middle;
-    padding-inline-end: 8px;
+    padding-inline-end: 2px;
+    overflow: hidden;
     color: var(--secondary-text-color, #727272);
   }
-  .cal-time { display: block; font-size: 12px; line-height: 1.35; }
+  .cal-time { display: block; font-size: 11px; line-height: 1.3; }
   .cal-time-end { opacity: 0.6; }
   .period-row { min-height: 44px; border-top: 1px solid var(--divider-color, #e0e0e0); }
   .period-row:first-child { border-top: 0; }
@@ -840,7 +841,27 @@ const STYLE = `
     background: var(--divider-color, #e0e0e0);
   }
   .warm { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
-  .toggle-row { justify-content: flex-end; margin-bottom: var(--st-gap); }
+  .toggle-row { justify-content: space-between; margin-bottom: var(--st-gap); }
+  .toggle-row .grow-left { flex: 1; min-width: 0; }
+  /* Same height as the view toggle it shares the row with. */
+  button.timetable-picker {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    box-sizing: border-box;
+    height: 40px;
+    max-width: 100%;
+    padding: 0 16px;
+    font-size: var(--ha-font-size-m, 14px);
+  }
+  button.timetable-picker > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .timetable-picker svg { width: 20px; height: 20px; flex: 0 0 auto; color: currentColor; }
+  ha-button.timetable-picker {
+    max-width: 100%;
+    --ha-button-height: 40px;
+    --ha-button-label-overflow: hidden;
+  }
+  ha-button.timetable-picker div { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   div.toggle { display: inline-flex; }
   div.toggle .toggle-item {
     border: 0;
@@ -2100,9 +2121,15 @@ class SchoolTimetablePanel extends HTMLElement {
         h("div", { class: "card" }, h("p", { class: "empty", text: _t(this._hass, "kids.empty") })),
       ];
     }
+    const daysOff = this._kidTab === "days_off";
     const toggle = h(
       "div",
       { class: "row toggle-row" },
+      h(
+        "div",
+        { class: "grow-left" },
+        daysOff ? null : this._renderTimetablePicker(kid)
+      ),
       this._renderToggle(
         this._kidTab,
         [
@@ -2115,7 +2142,6 @@ class SchoolTimetablePanel extends HTMLElement {
         }
       )
     );
-    const daysOff = this._kidTab === "days_off";
     return [
       toggle,
       daysOff ? this._renderDaysOffCard(kid) : this._renderTimetableCard(kid),
@@ -2195,45 +2221,68 @@ class SchoolTimetablePanel extends HTMLElement {
 
   // --- timetable -------------------------------------------------------
 
+  // ha-select is fixed at 56px from inside its own shadow root, which is
+  // taller than the view toggle beside it. The todo panel's list picker is a
+  // button that opens an ha-dropdown, so use that: it takes a height.
+  _renderTimetablePicker(kid) {
+    if (!kid.timetables.length) return null;
+    const current = this._timetable();
+    const label = (entry) =>
+      [
+        entry.label,
+        `${fmtDate(this._hass, entry.valid_from)} \u2013 ${
+          entry.valid_to
+            ? fmtDate(this._hass, entry.valid_to)
+            : _t(this._hass, "timetable.open_ended")
+        }`,
+      ]
+        .filter(Boolean)
+        .join(" \u00b7 ");
+
+    const chevron = icon("chevron");
+    chevron.setAttribute("slot", "end");
+    let trigger;
+    if (this._haButton) {
+      trigger = document.createElement("ha-button");
+      trigger.className = "timetable-picker";
+      trigger.setAttribute("appearance", "filled");
+      trigger.append(h("div", { text: current ? label(current) : "" }), chevron);
+    } else {
+      trigger = h(
+        "button",
+        { class: "timetable-picker" },
+        h("span", { text: current ? label(current) : "" }),
+        chevron
+      );
+    }
+
+    return this._dotMenu(
+      trigger,
+      kid.timetables.map((entry) => ({
+        value: entry.id,
+        label: label(entry),
+        icon: "calendar",
+        active: !!current && entry.id === current.id,
+        run: () => {
+          this._timetableId = entry.id;
+          this._render();
+        },
+      }))
+    );
+  }
+
+  // The card holds only the week itself: the picker lives above it, in the
+  // view's own header row.
   _renderTimetableCard(kid) {
     const timetable = this._timetable();
-    const select = this._select({
-      value: timetable ? timetable.id : "",
-      options: kid.timetables.map((entry) => ({
-        value: entry.id,
-        label: [
-          entry.label,
-          `${fmtDate(this._hass, entry.valid_from)} – ${
-            entry.valid_to
-              ? fmtDate(this._hass, entry.valid_to)
-              : _t(this._hass, "timetable.open_ended")
-          }`,
-        ]
-          .filter(Boolean)
-          .join(" · "),
-      })),
-      onChange: (value) => {
-        this._timetableId = value;
-        this._render();
-      },
-    });
-
-    const head = h(
-      "div",
-      { class: "row spread" },
-      h("h2", { text: kid.name }),
-      kid.timetables.length ? select : null
-    );
-
     if (!timetable) {
       return h(
         "div",
         { class: "card" },
-        head,
         h("p", { class: "empty", text: _t(this._hass, "timetable.empty") })
       );
     }
-    return h("div", { class: "card" }, head, ...this._renderWeek(kid, timetable));
+    return h("div", { class: "card" }, ...this._renderWeek(kid, timetable));
   }
 
   // A week the shape of a calendar: weekdays across, periods down, and each
