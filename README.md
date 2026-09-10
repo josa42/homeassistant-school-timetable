@@ -63,13 +63,15 @@ Open **Stundenplan** in the sidebar.
    period. Save.
 
 A kid's page has two views, switched with the toggle in the top right: the
-timetable, and that kid's days off. The button in the bottom corner adds
-whichever of the two you are looking at.
+timetable, and that kid's days off. Every view has a button in the bottom corner
+that adds whatever that view holds, and the same action sits in the menu in the
+top right.
 
 Adding, renaming and deleting a kid or a timetable, and adding a day off, all
 live in the menu in the top right. A timetable's label and date range are edited
 there too, under *Stundenplan bearbeiten*.
-4. **Add holidays** under Ferien, by hand or by importing an ICS file.
+4. **Add holidays** under Ferien, by hand or by importing an ICS file from the
+   menu in the top right.
 
 Under Settings, the default lesson times decide what a new timetable starts
 from.

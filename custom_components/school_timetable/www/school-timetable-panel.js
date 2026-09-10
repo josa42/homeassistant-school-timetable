@@ -101,6 +101,7 @@ const STRINGS = {
     "import.url_placeholder": "https://example.org/ferien.ics",
     "import.button": "Import",
     "import.running": "Importing…",
+    "import.nothing_chosen": "Choose a file or paste a URL first.",
     "import.result": "{added} added, {updated} updated.",
     "import.failed": "Import failed: {error}",
     "weekday.0": "Mon",
@@ -195,6 +196,7 @@ const STRINGS = {
     "import.url_placeholder": "https://example.org/ferien.ics",
     "import.button": "Importieren",
     "import.running": "Wird importiert…",
+    "import.nothing_chosen": "Erst eine Datei wählen oder eine URL einfügen.",
     "import.result": "{added} neu, {updated} aktualisiert.",
     "import.failed": "Import fehlgeschlagen: {error}",
     "weekday.0": "Mo",
@@ -249,6 +251,7 @@ const MDI = {
   plus: "M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z",
   calendar:
     "M19,19H5V8H19M19,3H18V1H16V3H8V1H6V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5A2,2 0 0,0 19,3Z",
+  upload: "M9,16V10H5L12,3L19,10H15V16H9M5,20V18H19V20H5Z",
   pencil:
     "M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z",
   delete: "M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z",
@@ -1003,9 +1006,11 @@ class SchoolTimetablePanel extends HTMLElement {
   }
 
   _updateMenu() {
+    const items = this._menuItems();
+    if (this._menuHost) this._menuHost.hidden = items.length === 0;
     if (!this._dropdown) return;
     const children = [this._dropdown.querySelector('[slot="trigger"]')];
-    for (const entry of this._menuItems()) {
+    for (const entry of items) {
       if (entry.divider) {
         children.push(document.createElement("wa-divider"));
         continue;
@@ -1063,10 +1068,38 @@ class SchoolTimetablePanel extends HTMLElement {
   }
 
   _menuItems() {
+    if (this._view === "closed") {
+      return [
+        {
+          value: "closed-add",
+          icon: "plus",
+          label: _t(this._hass, "closed.add"),
+          run: () => this._editClosedDay(null),
+        },
+        {
+          value: "ics-import",
+          icon: "upload",
+          label: _t(this._hass, "import.section"),
+          run: () => this._openImportDialog(),
+        },
+      ];
+    }
+    if (this._view === "settings") {
+      return [
+        {
+          value: "default-period-add",
+          icon: "plus",
+          label: _t(this._hass, "timetable.add_period"),
+          run: () => this._editDefaultPeriod(null),
+        },
+      ];
+    }
+    if (this._view !== "kid") return [];
+
     const items = [
       { value: "kid-add", icon: "plus", label: _t(this._hass, "kids.add_title"), run: () => this._addKid() },
     ];
-    const kid = this._view === "kid" ? this._kid() : null;
+    const kid = this._kid();
     if (!kid) return items;
 
     items.push(
@@ -1249,16 +1282,9 @@ class SchoolTimetablePanel extends HTMLElement {
         h("p", { class: "hint", text: _t(this._hass, "settings.hint") }),
         rows.length
           ? h("div", { class: "scroll" }, h("table", {}, h("tbody", {}, ...rows)))
-          : h("p", { class: "empty", text: _t(this._hass, "timetable.no_periods") }),
-        h(
-          "div",
-          { class: "row" },
-          h("button", {
-            text: _t(this._hass, "timetable.add_period"),
-            onClick: () => this._editDefaultPeriod(null),
-          })
-        )
+          : h("p", { class: "empty", text: _t(this._hass, "timetable.no_periods") })
       ),
+      this._renderFab(_t(this._hass, "timetable.add_period"), () => this._editDefaultPeriod(null)),
     ];
   }
 
@@ -2014,57 +2040,71 @@ class SchoolTimetablePanel extends HTMLElement {
       h("h2", { text: _t(this._hass, "closed.section") }),
       h("p", { class: "hint", text: _t(this._hass, "closed.hint") }),
       selection,
-      table,
-      h(
-        "div",
-        { class: "row" },
-        h("button", { text: _t(this._hass, "closed.add"), onClick: () => this._editClosedDay(null) })
-      )
+      table
     );
 
-    return [list, this._renderImportCard()];
+    return [
+      list,
+      this._renderFab(_t(this._hass, "closed.add"), () => this._editClosedDay(null)),
+    ];
   }
 
-  _renderImportCard() {
-    const file = h("input", {
-      type: "file",
-      accept: ".ics,text/calendar",
-      onChange: (event) => {
-        const chosen = event.target.files && event.target.files[0];
-        if (chosen) this._importFile(chosen);
-        event.target.value = "";
-      },
-    });
+  _openImportDialog() {
+    const close = () => backdrop.remove();
+    const status = h("p", { class: "status error" });
+    const file = h("input", { type: "file", accept: ".ics,text/calendar" });
     const url = h("input", {
       type: "url",
-      class: "grow",
       placeholder: _t(this._hass, "import.url_placeholder"),
     });
 
-    return h(
+    const submit = async () => {
+      const address = url.value.trim();
+      const chosen = file.files && file.files[0];
+      if (!address && !chosen) {
+        status.textContent = _t(this._hass, "import.nothing_chosen");
+        return;
+      }
+      close();
+      if (address) await this._import({ url: address });
+      else await this._importFile(chosen);
+    };
+
+    const dialog = h(
       "div",
-      { class: "card" },
+      { class: "dialog", role: "dialog" },
       h("h2", { text: _t(this._hass, "import.section") }),
       h("p", { class: "hint", text: _t(this._hass, "import.hint") }),
       h("label", { class: "field" }, _t(this._hass, "import.file"), file),
+      h("label", { class: "field" }, _t(this._hass, "import.url"), url),
+      status,
       h(
-        "label",
-        { class: "field" },
-        _t(this._hass, "import.url"),
-        h(
-          "div",
-          { class: "row" },
-          url,
-          h("button", {
-            class: "primary",
-            text: _t(this._hass, "import.button"),
-            onClick: () => {
-              if (url.value.trim()) this._import({ url: url.value.trim() });
-            },
-          })
-        )
+        "div",
+        { class: "actions" },
+        h("button", { text: _t(this._hass, "common.cancel"), onClick: close }),
+        h("button", {
+          class: "primary",
+          text: _t(this._hass, "import.button"),
+          onClick: submit,
+        })
       )
     );
+    const backdrop = h(
+      "div",
+      {
+        class: "backdrop",
+        onClick: (event) => {
+          if (event.target === backdrop) close();
+        },
+        onKeydown: (event) => {
+          if (event.key === "Escape") close();
+          if (event.key === "Enter") submit();
+        },
+      },
+      dialog
+    );
+    this._dialogs.append(backdrop);
+    file.focus();
   }
 
   async _importFile(file) {
