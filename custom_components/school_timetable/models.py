@@ -259,9 +259,7 @@ class Kid:
         name = str(data.get("name") or "").strip()
         if not name:
             return None
-        timetables = [
-            tt for tt in (Timetable.from_dict(raw) for raw in data.get("timetables") or []) if tt
-        ]
+        timetables = [tt for tt in (Timetable.from_dict(raw) for raw in data.get("timetables") or []) if tt]
         days_off = [d for d in (DayOff.from_dict(raw) for raw in data.get("days_off") or []) if d]
         return cls(
             id=str(data.get("id") or new_id()),

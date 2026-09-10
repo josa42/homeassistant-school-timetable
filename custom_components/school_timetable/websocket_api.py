@@ -248,9 +248,7 @@ async def handle_delete_timetable(hass, connection, msg, store) -> None:
 @websocket_api.websocket_command(
     {
         vol.Required("type"): "school_timetable/settings/set",
-        vol.Required("settings"): vol.Schema(
-            {vol.Required("default_periods"): [_PERIOD_SCHEMA]}
-        ),
+        vol.Required("settings"): vol.Schema({vol.Required("default_periods"): [_PERIOD_SCHEMA]}),
     }
 )
 @websocket_api.require_admin

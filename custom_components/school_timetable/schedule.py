@@ -45,9 +45,7 @@ class SchoolDay:
         Times stay on 24-hour HH:MM: the 12/24-hour choice is a per-user
         frontend setting that the server cannot see.
         """
-        return "\n".join(
-            f"{lesson.start.strftime('%H:%M')} {lesson.subject}" for lesson in self.lessons
-        )
+        return "\n".join(f"{lesson.start.strftime('%H:%M')} {lesson.subject}" for lesson in self.lessons)
 
 
 def school_days(data: SchoolData, kid: Kid, start: date, end: date) -> Iterator[SchoolDay]:

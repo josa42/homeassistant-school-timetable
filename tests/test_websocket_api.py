@@ -70,25 +70,19 @@ async def test_save_timetable_round_trips(hass: HomeAssistant, hass_storage, has
     ]
 
 
-async def test_unknown_kid_is_a_not_found_error(
-    hass: HomeAssistant, hass_storage, hass_ws_client
-) -> None:
+async def test_unknown_kid_is_a_not_found_error(hass: HomeAssistant, hass_storage, hass_ws_client) -> None:
     seed_storage(hass_storage)
     await setup_integration(hass)
     client = await hass_ws_client(hass)
 
-    await client.send_json_auto_id(
-        {"type": "school_timetable/kid/rename", "kid_id": "nope", "name": "X"}
-    )
+    await client.send_json_auto_id({"type": "school_timetable/kid/rename", "kid_id": "nope", "name": "X"})
     msg = await client.receive_json()
 
     assert not msg["success"]
     assert msg["error"]["code"] == "not_found"
 
 
-async def test_set_closed_days_replaces_the_list(
-    hass: HomeAssistant, hass_storage, hass_ws_client
-) -> None:
+async def test_set_closed_days_replaces_the_list(hass: HomeAssistant, hass_storage, hass_ws_client) -> None:
     seed_storage(hass_storage)
     await setup_integration(hass)
     client = await hass_ws_client(hass)
@@ -96,9 +90,7 @@ async def test_set_closed_days_replaces_the_list(
     await client.send_json_auto_id(
         {
             "type": "school_timetable/closed_days/set",
-            "closed_days": [
-                {"name": "Osterferien", "start": "2027-03-29", "end": "2027-04-09"}
-            ],
+            "closed_days": [{"name": "Osterferien", "start": "2027-03-29", "end": "2027-04-09"}],
         }
     )
     msg = await client.receive_json()
@@ -107,9 +99,7 @@ async def test_set_closed_days_replaces_the_list(
     assert [entry["name"] for entry in msg["result"]["closed_days"]] == ["Osterferien"]
 
 
-async def test_set_settings_and_seed_a_timetable(
-    hass: HomeAssistant, hass_storage, hass_ws_client
-) -> None:
+async def test_set_settings_and_seed_a_timetable(hass: HomeAssistant, hass_storage, hass_ws_client) -> None:
     seed_storage(hass_storage)
     await setup_integration(hass)
     client = await hass_ws_client(hass)
@@ -122,9 +112,7 @@ async def test_set_settings_and_seed_a_timetable(
     )
     msg = await client.receive_json()
     assert msg["success"]
-    assert msg["result"]["settings"]["default_periods"] == [
-        {"period": 1, "start": "07:45", "end": "08:30"}
-    ]
+    assert msg["result"]["settings"]["default_periods"] == [{"period": 1, "start": "07:45", "end": "08:30"}]
 
     await client.send_json_auto_id(
         {
@@ -153,9 +141,7 @@ async def test_import_ics_content(hass: HomeAssistant, hass_storage, hass_ws_cli
     assert msg["success"]
     assert msg["result"]["added"] == 1
     assert msg["result"]["updated"] == 0
-    imported = next(
-        entry for entry in msg["result"]["closed_days"] if entry["uid"] == "weihnachten-2026"
-    )
+    imported = next(entry for entry in msg["result"]["closed_days"] if entry["uid"] == "weihnachten-2026")
     assert imported["source"] == "ics"
     assert imported["end"] == "2027-01-06"
 
@@ -202,9 +188,7 @@ async def test_writes_require_admin(
     assert msg["error"]["code"] == "unauthorized"
 
 
-async def test_commands_work_before_the_entry_exists(
-    hass: HomeAssistant, hass_ws_client
-) -> None:
+async def test_commands_work_before_the_entry_exists(hass: HomeAssistant, hass_ws_client) -> None:
     """The websocket API is registered globally; without an entry it reports not_found."""
     await setup_integration(hass)
     entry = hass.config_entries.async_entries("school_timetable")[0]

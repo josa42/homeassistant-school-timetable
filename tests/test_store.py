@@ -143,16 +143,12 @@ async def test_a_new_timetable_seeds_the_default_bell_schedule(
 async def test_settings_change_what_a_new_timetable_starts_from(
     store: SchoolTimetableStore,
 ) -> None:
-    await store.async_set_settings(
-        {"default_periods": [{"period": 1, "start": "07:45", "end": "08:30"}]}
-    )
+    await store.async_set_settings({"default_periods": [{"period": 1, "start": "07:45", "end": "08:30"}]})
     created = await store.async_save_timetable(
         KID_ID, {"label": "2027/28", "valid_from": "2027-08-09", "valid_to": None}
     )
 
-    assert [(p.start.isoformat(), p.end.isoformat()) for p in created.periods] == [
-        ("07:45:00", "08:30:00")
-    ]
+    assert [(p.start.isoformat(), p.end.isoformat()) for p in created.periods] == [("07:45:00", "08:30:00")]
 
 
 async def test_clearing_every_period_is_not_refilled(store: SchoolTimetableStore) -> None:
@@ -166,9 +162,7 @@ async def test_clearing_every_period_is_not_refilled(store: SchoolTimetableStore
 
 
 def _holiday(uid, name, start, end) -> ImportedHoliday:
-    return ImportedHoliday(
-        uid=uid, name=name, start=date.fromisoformat(start), end=date.fromisoformat(end)
-    )
+    return ImportedHoliday(uid=uid, name=name, start=date.fromisoformat(start), end=date.fromisoformat(end))
 
 
 async def test_import_adds_rows_tagged_ics(store: SchoolTimetableStore) -> None:
@@ -216,9 +210,7 @@ async def test_recurring_uid_keeps_one_row_per_date(store: SchoolTimetableStore)
 
 async def test_import_never_touches_manual_rows(store: SchoolTimetableStore) -> None:
     """The manually added Herbstferien row survives an overlapping import."""
-    await store.async_import_holidays(
-        [_holiday("herbst", "Herbstferien (Land)", "2026-10-12", "2026-10-23")]
-    )
+    await store.async_import_holidays([_holiday("herbst", "Herbstferien (Land)", "2026-10-12", "2026-10-23")])
 
     manual = [entry for entry in store.data.closed_days if entry.source == "manual"]
     assert len(manual) == 1
