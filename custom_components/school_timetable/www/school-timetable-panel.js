@@ -1468,8 +1468,13 @@ class SchoolTimetablePanel extends HTMLElement {
     const values = await this._formDialog({
       title: _t(this._hass, "kids.rename_title"),
       fields: [{ key: "name", label: _t(this._hass, "common.name"), value: kid.name, required: true }],
+      deletable: true,
     });
     if (!values) return;
+    if (values.__deleted) {
+      await this._deleteKid(kid);
+      return;
+    }
     await this._call({ type: "school_timetable/kid/rename", kid_id: kid.id, name: values.name });
   }
 
@@ -1869,8 +1874,13 @@ class SchoolTimetablePanel extends HTMLElement {
         },
       ],
       validate: (input) => this._validateRange(input, timetable.id),
+      deletable: true,
     });
     if (!values) return;
+    if (values.__deleted) {
+      await this._deleteTimetable(kid, timetable);
+      return;
+    }
 
     // Saving the details saves the grid with it, so an edit in progress is not
     // silently thrown away.
@@ -1969,9 +1979,14 @@ class SchoolTimetablePanel extends HTMLElement {
         },
         { key: "reason", label: _t(this._hass, "days_off.reason"), value: entry ? entry.reason : "" },
       ],
+      deletable: entry !== null,
     });
     if (!values) return;
     const others = kid.days_off.filter((other) => other !== entry);
+    if (values.__deleted) {
+      await this._saveDaysOff(kid, others);
+      return;
+    }
     await this._saveDaysOff(kid, [...others, values]);
   }
 
@@ -2213,8 +2228,13 @@ class SchoolTimetablePanel extends HTMLElement {
           required: true,
         },
       ],
+      deletable: entry !== null,
     });
     if (!values) return;
+    if (values.__deleted) {
+      await this._deleteClosedDay(entry);
+      return;
+    }
     const next = this._data.closed_days.map((other) =>
       other === entry ? { ...other, ...values } : other
     );
