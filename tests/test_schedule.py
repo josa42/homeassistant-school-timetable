@@ -22,7 +22,7 @@ def test_monday_has_two_lessons_in_period_order() -> None:
     assert [lesson.subject for lesson in day.lessons] == ["Mathe", "Deutsch"]
     assert day.start.isoformat() == "08:00:00"
     assert day.end.isoformat() == "09:35:00"
-    assert day.description() == "1. 08:00 Mathe\n2. 08:50 Deutsch"
+    assert day.description() == "08:00 Mathe\n08:50 Deutsch"
 
 
 def test_gap_before_first_lesson_moves_the_start() -> None:

@@ -29,10 +29,10 @@ calendar.schule_anna:
     start_time: "2026-09-14 08:00:00"
     end_time: "2026-09-14 13:25:00"
     description: |-
-      1. 08:00 Mathe
-      2. 08:50 Deutsch
-      3. 09:55 Sport
-      4. 10:45 Englisch
+      08:00 Mathe
+      08:50 Deutsch
+      09:55 Sport
+      10:45 Englisch
 ```
 
 Nothing is stored per day. Events are generated from the timetable whenever

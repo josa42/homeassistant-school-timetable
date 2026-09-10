@@ -42,7 +42,7 @@ async def test_one_event_per_school_day(hass: HomeAssistant, hass_storage) -> No
     assert len(events) == 2
     monday, tuesday = events
     assert monday["summary"] == "School (Anna)"
-    assert monday["description"] == "1. 08:00 Mathe\n2. 08:50 Deutsch"
+    assert monday["description"] == "08:00 Mathe\n08:50 Deutsch"
     assert dt_util.parse_datetime(monday["start"]) == datetime(
         2026, 9, 14, 8, 0, tzinfo=dt_util.DEFAULT_TIME_ZONE
     )
@@ -85,7 +85,7 @@ async def test_state_is_on_during_a_lesson(hass: HomeAssistant, hass_storage, fr
     state = hass.states.get("calendar.school_anna")
 
     assert state.state == "on"
-    assert state.attributes["description"] == "1. 08:00 Mathe\n2. 08:50 Deutsch"
+    assert state.attributes["description"] == "08:00 Mathe\n08:50 Deutsch"
 
 
 async def test_state_points_at_the_next_school_day_when_off(
@@ -146,4 +146,4 @@ async def test_edits_show_up_without_a_reload(hass: HomeAssistant, hass_storage)
 
     events = await _get_events(hass, "calendar.school_anna", "2026-09-16 00:00:00", "2026-09-17 00:00:00")
 
-    assert [event["description"] for event in events] == ["1. 08:00 Schwimmen"]
+    assert [event["description"] for event in events] == ["08:00 Schwimmen"]
