@@ -9,6 +9,9 @@
 // module URL is the only cache-buster.
 const PANEL_VERSION = "1.0.0";
 
+// How long to wait for Home Assistant's menu elements before keeping our own.
+const MENU_UPGRADE_TIMEOUT = 2000;
+
 // Home Assistant only ships a fixed set of translation categories to the
 // frontend, and a custom key like `panel.*` is not one of them, so
 // hass.localize would always miss. The table below is the real source; the
@@ -35,7 +38,7 @@ const STRINGS = {
     "error.unknown": "Something went wrong.",
     "kids.add": "Add kid",
     "kids.add_title": "Add kid",
-    "kids.rename_title": "Rename kid",
+    "kids.rename_title": "Edit kid",
     "kids.delete_title": "Delete kid",
     "menu.title": "Actions",
     "kids.empty": "No kids yet. Add one to get started.",
@@ -129,7 +132,7 @@ const STRINGS = {
     "error.unknown": "Etwas ist schiefgelaufen.",
     "kids.add": "Kind hinzufügen",
     "kids.add_title": "Kind hinzufügen",
-    "kids.rename_title": "Kind umbenennen",
+    "kids.rename_title": "Kind bearbeiten",
     "kids.delete_title": "Kind löschen",
     "menu.title": "Aktionen",
     "kids.empty": "Noch keine Kinder. Lege eines an, um zu starten.",
@@ -246,6 +249,9 @@ const MDI = {
   plus: "M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z",
   calendar:
     "M19,19H5V8H19M19,3H18V1H16V3H8V1H6V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5A2,2 0 0,0 19,3Z",
+  pencil:
+    "M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z",
+  delete: "M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z",
   cog: "M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.21,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.21,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.67 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z",
 };
 
@@ -477,7 +483,7 @@ const STYLE = `
   }
   .nav-item[aria-current="page"] svg { color: var(--primary-color, #03a9f4); }
   .view { flex: 1; min-width: 0; height: 100%; overflow: auto; }
-  .view-inner { max-width: 1100px; margin: 0 auto; padding: var(--st-gap); }
+  .view-inner { max-width: 1100px; margin: 0 auto; padding: var(--st-gap) var(--st-gap) 88px; }
   @media (max-width: 700px) {
     .toolbar-pane { flex: 0 0 auto; width: auto; border-inline-end: 0; }
     .layout { flex-direction: column; overflow: auto; }
@@ -574,6 +580,34 @@ const STYLE = `
   button.link:hover {
     background: var(--secondary-background-color, #e5e5e5);
     color: var(--primary-text-color, #212121);
+  }
+  .fab {
+    position: fixed;
+    right: calc(16px + var(--safe-area-inset-right, 0px));
+    bottom: calc(16px + var(--safe-area-inset-bottom, 0px));
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 48px;
+    padding: 0 24px;
+    border: 0;
+    border-radius: 999px;
+    font-size: 15px;
+    background: var(--ha-color-fill-primary-loud-resting, var(--primary-color, #03a9f4));
+    color: var(--ha-color-on-primary-loud, var(--text-primary-color, #fff));
+    box-shadow: var(--ha-box-shadow-l, 0 3px 5px -1px rgba(0, 0, 0, 0.2),
+      0 6px 10px 0 rgba(0, 0, 0, 0.14), 0 1px 18px 0 rgba(0, 0, 0, 0.12));
+    z-index: 5;
+  }
+  .fab svg { width: 20px; height: 20px; color: currentColor; }
+  .menu-host { display: flex; align-items: center; }
+  .menu-item { display: flex; align-items: center; gap: 16px; }
+  .menu-item svg { width: 20px; height: 20px; flex: 0 0 auto; color: var(--secondary-text-color, #727272); }
+  .menu-item.danger svg { color: var(--error-color, #db4437); }
+  .menu-divider {
+    height: 1px;
+    margin: 4px 0;
+    background: var(--divider-color, #e0e0e0);
   }
   .toggle-row { justify-content: flex-end; margin-bottom: var(--st-gap); }
   .toggle { display: inline-flex; }
@@ -905,12 +939,7 @@ class SchoolTimetablePanel extends HTMLElement {
         this.dispatchEvent(new CustomEvent("hass-toggle-menu", { bubbles: true, composed: true })),
     });
     menu.innerHTML = SVG_MENU;
-    const overflow = h("button", {
-      class: "menu",
-      title: _t(this._hass, "menu.title"),
-      onClick: () => this._openMenu(),
-    });
-    overflow.innerHTML = SVG_OVERFLOW;
+    this._menuHost = h("div", { class: "menu-host" });
     this._main = h("div", { class: "content" });
     this._dialogs = h("div");
     this.shadowRoot.replaceChildren(
@@ -919,11 +948,77 @@ class SchoolTimetablePanel extends HTMLElement {
         "div",
         { class: "toolbar" },
         h("div", { class: "toolbar-pane" }, menu, h("div", { class: "app-title", text: this._title() })),
-        h("div", { class: "toolbar-main" }, h("div", { class: "grow" }), overflow)
+        h("div", { class: "toolbar-main" }, h("div", { class: "grow" }), this._menuHost)
       ),
       this._main,
       this._dialogs
     );
+    this._setupMenu();
+  }
+
+  // Home Assistant's menu elements live in lazily loaded chunks, so the panel
+  // starts with a menu of its own and swaps in ha-dropdown once that chunk is
+  // there. loadCardHelpers is what pulls it in. Either way the actions work
+  // from the first paint.
+  async _setupMenu() {
+    this._installFallbackMenu();
+
+    if (!customElements.get("ha-dropdown-item")) {
+      try {
+        await window.loadCardHelpers?.();
+      } catch (err) {
+        /* the fallback stays */
+      }
+      await Promise.race([
+        customElements.whenDefined("ha-dropdown-item"),
+        new Promise((resolve) => setTimeout(resolve, MENU_UPGRADE_TIMEOUT)),
+      ]);
+    }
+    if (!customElements.get("ha-dropdown-item") || !this._menuHost.isConnected) return;
+
+    const trigger = this._trigger();
+    trigger.setAttribute("slot", "trigger");
+    const dropdown = document.createElement("ha-dropdown");
+    dropdown.addEventListener("wa-select", (event) => {
+      const value = event.detail?.item?.value;
+      const entry = this._menuItems().find((item) => item.value === value);
+      if (entry) entry.run();
+    });
+    dropdown.appendChild(trigger);
+    this._dropdown = dropdown;
+    this._menuHost.replaceChildren(dropdown);
+    this._updateMenu();
+  }
+
+  _trigger() {
+    const trigger = h("button", { class: "menu", title: _t(this._hass, "menu.title") });
+    trigger.innerHTML = SVG_OVERFLOW;
+    return trigger;
+  }
+
+  _installFallbackMenu() {
+    const trigger = this._trigger();
+    trigger.addEventListener("click", () => this._openMenu());
+    this._menuHost.replaceChildren(trigger);
+  }
+
+  _updateMenu() {
+    if (!this._dropdown) return;
+    const children = [this._dropdown.querySelector('[slot="trigger"]')];
+    for (const entry of this._menuItems()) {
+      if (entry.divider) {
+        children.push(document.createElement("wa-divider"));
+        continue;
+      }
+      const item = document.createElement("ha-dropdown-item");
+      item.value = entry.value;
+      if (entry.danger) item.setAttribute("variant", "danger");
+      const glyph = icon(entry.icon);
+      glyph.setAttribute("slot", "icon");
+      item.append(glyph, document.createTextNode(entry.label));
+      children.push(item);
+    }
+    this._dropdown.replaceChildren(...children);
   }
 
   // Actions live here rather than on the cards, matching the todo panel: the
@@ -934,15 +1029,21 @@ class SchoolTimetablePanel extends HTMLElement {
       "div",
       { class: "menu-popup", role: "menu" },
       ...this._menuItems().map((item) =>
-        h("button", {
-          class: `menu-item ${item.danger ? "danger" : ""}`,
-          role: "menuitem",
-          text: item.label,
-          onClick: () => {
-            close();
-            item.run();
-          },
-        })
+        item.divider
+          ? h("div", { class: "menu-divider" })
+          : h(
+              "button",
+              {
+                class: `menu-item ${item.danger ? "danger" : ""}`,
+                role: "menuitem",
+                onClick: () => {
+                  close();
+                  item.run();
+                },
+              },
+              icon(item.icon),
+              h("span", { text: item.label })
+            )
       )
     );
     const backdrop = h(
@@ -963,35 +1064,62 @@ class SchoolTimetablePanel extends HTMLElement {
 
   _menuItems() {
     const items = [
-      { label: _t(this._hass, "kids.add_title"), run: () => this._addKid() },
+      { value: "kid-add", icon: "plus", label: _t(this._hass, "kids.add_title"), run: () => this._addKid() },
     ];
     const kid = this._view === "kid" ? this._kid() : null;
     if (!kid) return items;
 
-    const timetable = this._timetable();
     items.push(
-      { label: _t(this._hass, "kids.rename_title"), run: () => this._renameKid(kid) },
-      { label: _t(this._hass, "timetable.add_title"), run: () => this._addTimetable(kid) }
-    );
-    if (timetable) {
-      items.push({
-        label: _t(this._hass, "timetable.edit_title"),
-        run: () => this._editTimetableDetails(kid, timetable),
-      });
-    }
-    items.push({ label: _t(this._hass, "days_off.add"), run: () => this._editDayOff(kid, null) });
-    if (timetable) {
-      items.push({
-        label: _t(this._hass, "timetable.delete_title"),
+      {
+        value: "kid-edit",
+        icon: "pencil",
+        label: _t(this._hass, "kids.rename_title"),
+        run: () => this._renameKid(kid),
+      },
+      {
+        value: "kid-delete",
+        icon: "delete",
         danger: true,
-        run: () => this._deleteTimetable(kid, timetable),
-      });
+        label: _t(this._hass, "kids.delete_title"),
+        run: () => this._deleteKid(kid),
+      },
+      { divider: true },
+      {
+        value: "timetable-add",
+        icon: "plus",
+        label: _t(this._hass, "timetable.add_title"),
+        run: () => this._addTimetable(kid),
+      }
+    );
+
+    const timetable = this._timetable();
+    if (timetable) {
+      items.push(
+        {
+          value: "timetable-edit",
+          icon: "pencil",
+          label: _t(this._hass, "timetable.edit_title"),
+          run: () => this._editTimetableDetails(kid, timetable),
+        },
+        {
+          value: "timetable-delete",
+          icon: "delete",
+          danger: true,
+          label: _t(this._hass, "timetable.delete_title"),
+          run: () => this._deleteTimetable(kid, timetable),
+        }
+      );
     }
-    items.push({
-      label: _t(this._hass, "kids.delete_title"),
-      danger: true,
-      run: () => this._deleteKid(kid),
-    });
+
+    items.push(
+      { divider: true },
+      {
+        value: "day-off-add",
+        icon: "plus",
+        label: _t(this._hass, "days_off.add"),
+        run: () => this._editDayOff(kid, null),
+      }
+    );
     return items;
   }
 
@@ -1017,6 +1145,7 @@ class SchoolTimetablePanel extends HTMLElement {
       return;
     }
 
+    this._updateMenu();
     this._main.replaceChildren(
       h(
         "div",
@@ -1179,10 +1308,19 @@ class SchoolTimetablePanel extends HTMLElement {
         }
       )
     );
+    const daysOff = this._kidTab === "days_off";
     return [
       toggle,
-      this._kidTab === "days_off" ? this._renderDaysOffCard(kid) : this._renderTimetableCard(kid),
+      daysOff ? this._renderDaysOffCard(kid) : this._renderTimetableCard(kid),
+      this._renderFab(
+        daysOff ? _t(this._hass, "days_off.add") : _t(this._hass, "timetable.add_title"),
+        daysOff ? () => this._editDayOff(kid, null) : () => this._addTimetable(kid)
+      ),
     ];
+  }
+
+  _renderFab(label, onClick) {
+    return h("button", { class: "fab", onClick }, icon("plus"), h("span", { text: label }));
   }
 
   _renderToggle(active, options, onChange) {

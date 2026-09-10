@@ -63,7 +63,8 @@ Open **Stundenplan** in the sidebar.
    period. Save.
 
 A kid's page has two views, switched with the toggle in the top right: the
-timetable, and that kid's days off.
+timetable, and that kid's days off. The button in the bottom corner adds
+whichever of the two you are looking at.
 
 Adding, renaming and deleting a kid or a timetable, and adding a day off, all
 live in the menu in the top right. A timetable's label and date range are edited

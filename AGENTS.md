@@ -100,6 +100,14 @@ panel name over the pane and nothing else, because that panel puts the selected
 list's name on the card rather than in the bar. The kid's name is the timetable
 card's heading for the same reason.
 
+The overflow menu tries for the real thing: `_setupMenu` installs the panel's
+own menu first, then calls `window.loadCardHelpers()` and, if
+`ha-dropdown-item` turns up within two seconds, replaces it with `ha-dropdown`
+holding `ha-dropdown-item`s and `wa-divider`s. Selection arrives as `wa-select`
+with `event.detail.item.value`, which is how the todo panel reads it. There is
+no `ha-divider`; `wa-divider` is the one that exists. Keep both paths working:
+the fallback is what a cold panel load gets if that chunk never arrives.
+
 The toggle above a kid's view is a hand-built `ha-button-toggle-group`: that
 element is `wa-button-group` plus `ha-button` from a lazily loaded chunk, so it
 gets the same treatment as the icons. The colours come from the tokens it
