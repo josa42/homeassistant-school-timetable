@@ -350,43 +350,52 @@ function _formatLanguage(hass, setting) {
   return locale.language || (hass && hass.language) || "en";
 }
 
+// Mirrors the frontend's useAMPM: for "language" and "system" it asks the
+// runtime by formatting 22:00 and looking for a 10.
 function _usesAmPm(hass) {
   const setting = ((hass && hass.locale) || {}).time_format;
   if (setting === "12") return true;
   if (setting === "24") return false;
+  const language = setting === "language" ? _formatLanguage(hass, setting) : undefined;
+  return new Date("January 1, 2023 22:00:00").toLocaleString(language).includes("10");
+}
+
+function _numericDateFormat(hass, setting) {
   const language = _formatLanguage(hass, setting);
-  return (
-    _cachedFormat(`probe:${language}`, () =>
-      new Intl.DateTimeFormat(language, { hour: "numeric" })
-    ).resolvedOptions().hour12 === true
+  return _cachedFormat(`date:${setting}:${language}`, () =>
+    new Intl.DateTimeFormat(language, { year: "numeric", month: "numeric", day: "numeric" })
   );
 }
 
+// Mirrors the frontend's formatDateNumeric, so a date here reads exactly like
+// one in an ha-date-input. "language" and "system" take the runtime's order; the
+// explicit orders reuse the parts that locale produced, which keeps its own
+// separator (dots in German, slashes in English) rather than importing another
+// locale's punctuation.
 function fmtDate(hass, iso) {
   if (!iso) return "";
-  const parts = iso.split("-").map(Number);
-  const date = new Date(parts[0], parts[1] - 1, parts[2]);
+  const [year, month, day] = iso.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
   const setting = ((hass && hass.locale) || {}).date_format;
+  const formatter = _numericDateFormat(hass, setting);
+  if (setting !== "DMY" && setting !== "MDY" && setting !== "YMD") return formatter.format(date);
+
+  const parts = formatter.formatToParts(date);
+  const pick = (type) => parts.find((part) => part.type === type)?.value;
+  const separator = pick("literal") ?? ".";
+  const last = parts[parts.length - 1];
   const language = _formatLanguage(hass, setting);
-  const numeric = { day: "2-digit", month: "2-digit", year: "numeric" };
-  return _cachedFormat(`date:${setting}:${language}`, () => {
-    switch (setting) {
-      case "DMY":
-        return new Intl.DateTimeFormat("en-GB", numeric);
-      case "MDY":
-        return new Intl.DateTimeFormat("en-US", numeric);
-      case "YMD":
-        return new Intl.DateTimeFormat("sv-SE", numeric);
-      default:
-        return new Intl.DateTimeFormat(language, {
-          year: "numeric",
-          month: "short",
-          day: "numeric",
-        });
-    }
-  }).format(date);
+  const suffix =
+    last && last.type === "literal" && !(language === "bg" && setting === "YMD") ? last.value : "";
+  const order = {
+    DMY: [pick("day"), pick("month"), pick("year")],
+    MDY: [pick("month"), pick("day"), pick("year")],
+    YMD: [pick("year"), pick("month"), pick("day")],
+  }[setting];
+  return order.join(separator) + suffix;
 }
 
+// Mirrors the frontend's formatTime.
 function fmtTime(hass, value) {
   if (!value) return "";
   const [hours, minutes] = value.split(":").map(Number);
@@ -394,13 +403,12 @@ function fmtTime(hass, value) {
   const language = _formatLanguage(hass, setting);
   const amPm = _usesAmPm(hass);
   return _cachedFormat(`time:${language}:${amPm}`, () =>
-    new Intl.DateTimeFormat(
-      language,
-      amPm
-        ? { hour: "numeric", minute: "2-digit", hour12: true }
-        : { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }
-    )
-  ).format(new Date(2000, 0, 1, hours, minutes));
+    new Intl.DateTimeFormat(language, {
+      hour: amPm ? "numeric" : "2-digit",
+      minute: "2-digit",
+      hour12: amPm,
+    })
+  ).format(new Date(2023, 0, 1, hours, minutes));
 }
 
 function todayIso() {

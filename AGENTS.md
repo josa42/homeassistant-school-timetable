@@ -248,10 +248,18 @@ State comes from one websocket subscription (`school_timetable/subscribe`) that
 pushes the whole document after every change, so a second open panel stays in
 sync. Mutations also return the document, which is what the panel renders from.
 
-Dates and times in the panel go through `fmtDate` and `fmtTime`, which read
-each user's `hass.locale` (`date_format`, `time_format`) the way Home Assistant's
-own frontend does. The values are the frontend's own enums: `language`, `system`,
-`DMY`, `MDY`, `YMD`, and `12` / `24`.
+`fmtDate` and `fmtTime` mirror the frontend's `formatDateNumeric`, `formatTime`
+and `useAMPM`, so a date rendered here reads exactly like one inside an
+`ha-date-input`. Two details are easy to get wrong:
+
+- `language` and `system` use a **numeric** month, not a short name. German
+  gives `10.8.2026`, not `10. Aug. 2026`.
+- `DMY`, `MDY` and `YMD` do not mean another locale's format. HA formats with
+  the user's language, then reorders the parts, keeping that language's
+  separator and any trailing literal. German DMY is `10.8.2026`, English DMY is
+  `10/8/2026`. Hardcoding `en-GB` or `sv-SE` imports the wrong punctuation.
+- `useAMPM` decides `language`/`system` by formatting 22:00 and looking for a
+  `10`, not by `resolvedOptions().hour12`.
 
 Home Assistant pushes a fresh `hass` object on every state change, so the panel
 cannot repaint on all of them without throwing away whatever is being typed. The
