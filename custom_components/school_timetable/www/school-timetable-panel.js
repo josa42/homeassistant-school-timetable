@@ -429,7 +429,8 @@ const STYLE = `
     display: flex;
     flex-direction: column;
     position: relative;
-    background: var(--card-background-color, #fff);
+    /* No background of its own: the pane sits on the page background, which is
+       what separates it from Home Assistant's own sidebar to its left. */
     border-right: 1px solid var(--divider-color, #e0e0e0);
     border-inline-end: 1px solid var(--divider-color, #e0e0e0);
     border-inline-start: initial;
