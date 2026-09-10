@@ -7,7 +7,7 @@
 //
 // Bump PANEL_VERSION here and in const.py together. The query string on the
 // module URL is the only cache-buster.
-const PANEL_VERSION = "1.0.0";
+const PANEL_VERSION = "1.1.0";
 
 // Home Assistant's elements are defined as its chunks arrive, which happens
 // after a panel's first paint. So the panel renders its own controls, waits on
@@ -83,9 +83,9 @@ const STRINGS = {
     "timetable.add_period": "Add period",
     "timetable.overlap": "This overlaps another period.",
     "timetable.end_before_start": "The end must be after the start.",
-    "timetable.lessons": "Lessons",
     "timetable.subject": "Subject",
     "timetable.duration": "Duration",
+    "timetable.hours": "School hours",
     "timetable.no_periods": "No periods yet. Add one to start filling in lessons.",
     "timetable.show_weekend": "Show weekend",
     "days_off.section": "Days off",
@@ -178,9 +178,9 @@ const STRINGS = {
     "timetable.add_period": "Stunde hinzufügen",
     "timetable.overlap": "Überschneidet sich mit einer anderen Stunde.",
     "timetable.end_before_start": "Das Ende muss nach dem Beginn liegen.",
-    "timetable.lessons": "Fächer",
     "timetable.subject": "Fach",
     "timetable.duration": "Dauer",
+    "timetable.hours": "Stundenzeiten",
     "timetable.no_periods": "Noch keine Stunden. Füge eine hinzu, um Fächer einzutragen.",
     "timetable.show_weekend": "Wochenende anzeigen",
     "days_off.section": "Freie Tage",
@@ -249,23 +249,18 @@ function _errorText(hass, err) {
   return _t(hass, "error.unknown");
 }
 
-// Home Assistant's own palette, limited to the shades that carry white text.
-// A subject keeps its colour wherever it appears, so a week reads like a
-// calendar rather than a table of words.
-const SUBJECT_COLORS = [
-  ["--blue-color", "#2196f3"],
-  ["--green-color", "#4caf50"],
-  ["--deep-orange-color", "#ff6f22"],
-  ["--purple-color", "#926bc7"],
-  ["--teal-color", "#009688"],
-  ["--pink-color", "#e91e63"],
-  ["--indigo-color", "#3f51b5"],
-  ["--orange-color", "#ff9800"],
-  ["--cyan-color", "#00bcd4"],
-  ["--red-color", "#f44336"],
-  ["--blue-grey-color", "#607d8b"],
-  ["--brown-color", "#795548"],
+// A generated palette rather than a fixed list, so a school with thirty
+// subjects still gets thirty tellable-apart colours. Hues are spread evenly and
+// each comes in three muted tones: 72 buckets in all. Saturation and lightness
+// stay in a narrow band so a full week never shouts, and entries are tinted
+// from these rather than filled with them.
+const SUBJECT_HUES = 24;
+const SUBJECT_TONES = [
+  { saturation: 52, lightness: 46 },
+  { saturation: 38, lightness: 58 },
+  { saturation: 44, lightness: 36 },
 ];
+const SUBJECT_BUCKETS = SUBJECT_HUES * SUBJECT_TONES.length;
 
 function lessonSpan(lesson) {
   return Math.max(1, Number(lesson.span) || 1);
@@ -279,14 +274,41 @@ function lessonCovers(lesson, periodNumber) {
   return periodNumber >= lesson.period && periodNumber < lesson.period + lessonSpan(lesson);
 }
 
-function subjectColor(subject) {
+function subjectBucket(subject) {
   const key = String(subject || "").trim().toLowerCase();
   let hash = 0;
   for (let index = 0; index < key.length; index++) {
     hash = (hash * 31 + key.charCodeAt(index)) >>> 0;
   }
-  const [token, fallback] = SUBJECT_COLORS[hash % SUBJECT_COLORS.length];
-  return `var(${token}, ${fallback})`;
+  return hash % SUBJECT_BUCKETS;
+}
+
+function bucketColor(bucket) {
+  const hue = (bucket % SUBJECT_HUES) * (360 / SUBJECT_HUES);
+  const tone = SUBJECT_TONES[Math.floor(bucket / SUBJECT_HUES) % SUBJECT_TONES.length];
+  return `hsl(${hue} ${tone.saturation}% ${tone.lightness}%)`;
+}
+
+// The bucket comes from the name, so a subject keeps its colour. Two names can
+// hash to the same bucket, which would be confusing side by side, so the names
+// in one week are walked in a fixed order and a taken bucket steps to the next
+// free one. Same week, same colours; adding a subject can only move the ones
+// that were sharing.
+function subjectColors(subjects) {
+  const names = [...new Set(subjects.map((name) => String(name || "").trim()))]
+    .filter(Boolean)
+    .sort((left, right) => left.localeCompare(right));
+  const taken = new Set();
+  const colors = new Map();
+  for (const name of names) {
+    let bucket = subjectBucket(name);
+    for (let step = 0; step < SUBJECT_BUCKETS && taken.has(bucket); step++) {
+      bucket = (bucket + 1) % SUBJECT_BUCKETS;
+    }
+    taken.add(bucket);
+    colors.set(name, bucketColor(bucket));
+  }
+  return colors;
 }
 
 function _t(hass, key, params) {
@@ -703,7 +725,19 @@ const STYLE = `
   table.cal { table-layout: fixed; border-collapse: separate; border-spacing: 4px 4px; }
   table.cal th { text-align: center; font-size: 13px; padding-bottom: 0; }
   table.cal td { border-top: 0; padding: 0; }
-  table.cal .cal-times { width: 120px; white-space: nowrap; text-align: end; vertical-align: middle; }
+  table.cal .cal-times {
+    width: 62px;
+    white-space: nowrap;
+    text-align: end;
+    vertical-align: middle;
+    padding-inline-end: 8px;
+    color: var(--secondary-text-color, #727272);
+  }
+  .cal-time { display: block; font-size: 12px; line-height: 1.35; }
+  .cal-time-end { opacity: 0.6; }
+  .period-row { min-height: 44px; border-top: 1px solid var(--divider-color, #e0e0e0); }
+  .period-row:first-child { border-top: 0; }
+  .period-list { display: flex; flex-direction: column; }
   .cal-cell { height: 52px; }
   .cal-entry,
   .cal-slot {
@@ -719,14 +753,17 @@ const STYLE = `
     text-align: start;
     overflow: hidden;
   }
-  /* An entry looks like a calendar event: solid subject colour, white label. */
+  /* Tinted like a calendar chip rather than filled: the hue carries the
+     identity, the text stays readable in either theme. */
   .cal-entry {
     border: 0;
-    background: var(--st-subject, var(--primary-color, #03a9f4));
-    color: var(--text-primary-color, #fff);
-    box-shadow: none;
+    border-inline-start: 4px solid var(--st-subject, var(--primary-color, #03a9f4));
+    background: color-mix(in srgb, var(--st-subject, var(--primary-color, #03a9f4)) 18%, transparent);
+    color: var(--primary-text-color, #212121);
   }
-  .cal-entry:hover { filter: brightness(1.06); background: var(--st-subject, var(--primary-color, #03a9f4)); }
+  .cal-entry:hover {
+    background: color-mix(in srgb, var(--st-subject, var(--primary-color, #03a9f4)) 30%, transparent);
+  }
   .cal-subject { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .cal-slot {
     justify-content: center;
@@ -934,7 +971,6 @@ class SchoolTimetablePanel extends HTMLElement {
     this._view = "kid";
     this._kidId = null;
     this._timetableId = null;
-    this._showWeekend = false;
     this._selected = new Set();
     this._kidTab = "timetable";
     this._nativeMenu = false;
@@ -1256,7 +1292,6 @@ class SchoolTimetablePanel extends HTMLElement {
       element.value = value;
       // ha-select reports a choice as "selected", not the usual value-changed,
       // and never writes its own value: it expects the owner to hand it back.
-      // Listening only for value-changed leaves the select inert on a click.
       const handler = (event) => {
         event.stopPropagation();
         const next = event.detail?.value ?? "";
@@ -2135,6 +2170,7 @@ class SchoolTimetablePanel extends HTMLElement {
     const result = await this._call({ type: "school_timetable/kid/add", name: values.name });
     this._kidId = result.kid_id;
     this._timetableId = null;
+    this._render();
   }
 
   async _renameKid(kid) {
@@ -2204,12 +2240,13 @@ class SchoolTimetablePanel extends HTMLElement {
   // lesson an entry in its slot. Everything is edited in a dialog, so there is
   // nothing to save separately.
   _renderWeek(kid, timetable) {
-    const weekdays = this._showWeekend ? [0, 1, 2, 3, 4, 5, 6] : [0, 1, 2, 3, 4];
+    const weekdays = timetable.show_weekend ? [0, 1, 2, 3, 4, 5, 6] : [0, 1, 2, 3, 4];
     const periods = orderedPeriods(timetable);
     const lessonAt = (weekday, period) =>
       timetable.lessons.find(
         (lesson) => lesson.weekday === weekday && lesson.period === period.period
       );
+    const colors = subjectColors(timetable.lessons.map((lesson) => lesson.subject));
 
     // A lesson covering more than one period leaves the slots underneath it
     // empty, the way a longer calendar entry does.
@@ -2238,7 +2275,12 @@ class SchoolTimetablePanel extends HTMLElement {
         },
         lesson ? h("span", { class: "cal-subject", text: lesson.subject }) : icon("plus")
       );
-      if (lesson) button.style.setProperty("--st-subject", subjectColor(lesson.subject));
+      if (lesson) {
+        button.style.setProperty(
+          "--st-subject",
+          colors.get(lesson.subject.trim()) || bucketColor(subjectBucket(lesson.subject))
+        );
+      }
       const td = h("td", { class: "cal-cell" }, button);
       if (span > 1) td.setAttribute("rowspan", String(span));
       return td;
@@ -2271,15 +2313,8 @@ class SchoolTimetablePanel extends HTMLElement {
                   h(
                     "td",
                     { class: "cal-times" },
-                    this._button({
-                      label: `${fmtTime(this._hass, period.start)} – ${fmtTime(
-                        this._hass,
-                        period.end
-                      )}`,
-                      className: "link",
-                      appearance: "plain",
-                      onClick: () => this._editPeriod(kid, timetable, index),
-                    })
+                    h("span", { class: "cal-time", text: fmtTime(this._hass, period.start) }),
+                    h("span", { class: "cal-time cal-time-end", text: fmtTime(this._hass, period.end) })
                   ),
                   ...weekdays.map((day) => cell(day, period, index))
                 )
@@ -2289,31 +2324,7 @@ class SchoolTimetablePanel extends HTMLElement {
         )
       : h("p", { class: "empty", text: _t(this._hass, "timetable.no_periods") });
 
-    return [
-      h(
-        "div",
-        { class: "row spread" },
-        h("h3", { text: _t(this._hass, "timetable.lessons") }),
-        this._checkbox({
-          checked: this._showWeekend,
-          label: _t(this._hass, "timetable.show_weekend"),
-          onChange: (checked) => {
-            this._showWeekend = checked;
-            this._render();
-          },
-        })
-      ),
-      grid,
-      h(
-        "div",
-        { class: "row" },
-        this._button({
-          label: _t(this._hass, "timetable.add_period"),
-          appearance: "filled",
-          onClick: () => this._editPeriod(kid, timetable, null),
-        })
-      ),
-    ];
+    return [grid];
   }
 
   async _editLesson(kid, timetable, weekday, period) {
@@ -2388,7 +2399,7 @@ class SchoolTimetablePanel extends HTMLElement {
     await this._saveTimetable(kid, timetable, { lessons });
   }
 
-  async _editPeriod(kid, timetable, index) {
+  async _editPeriod(kid, timetable, index, onDone) {
     const periods = [...timetable.periods]
       .sort((left, right) => left.start.localeCompare(right.start))
       .map((period) => ({ ...period }));
@@ -2400,6 +2411,14 @@ class SchoolTimetablePanel extends HTMLElement {
     else Object.assign(periods[index], { start: values.start, end: values.end });
 
     await this._savePeriods(kid, timetable, periods);
+    if (onDone) onDone();
+  }
+
+  async _deletePeriod(kid, timetable, index, onDone) {
+    const periods = orderedPeriods(timetable).map((period) => ({ ...period }));
+    periods.splice(index, 1);
+    await this._savePeriods(kid, timetable, periods);
+    if (onDone) onDone();
   }
 
   _periodDialog(periods, index) {
@@ -2507,46 +2526,158 @@ class SchoolTimetablePanel extends HTMLElement {
         valid_to: values.valid_to || null,
       },
     });
+    // Select it straight away: the store push that follows the save may land
+    // before this assignment, so paint again once it is set.
     this._timetableId = result.timetable_id;
+    this._render();
   }
 
-  async _editTimetableDetails(kid, timetable) {
-    const values = await this._formDialog({
+  // Everything about a timetable lives here: its name, the dates it covers,
+  // whether the week includes the weekend, and the school hours themselves.
+  // The hour rows save as they are edited; the fields above save on Speichern.
+  _editTimetableDetails(kid, timetable) {
+    const fields = [
+      {
+        key: "label",
+        label: _t(this._hass, "timetable.label"),
+        value: timetable.label,
+        required: true,
+        placeholder: _t(this._hass, "timetable.label_placeholder"),
+      },
+      {
+        key: "valid_from",
+        label: _t(this._hass, "timetable.valid_from"),
+        type: "date",
+        value: timetable.valid_from,
+        required: true,
+      },
+      {
+        key: "valid_to",
+        label: _t(this._hass, "timetable.valid_to"),
+        type: "date",
+        value: timetable.valid_to || "",
+      },
+    ];
+
+    const controls = {};
+    const error = h("p", { class: "status error" });
+    const hours = h("div", { class: "period-list" });
+    let weekend = Boolean(timetable.show_weekend);
+    let surface;
+
+    // Hour edits go straight to the store, so read the timetable back rather
+    // than the copy this dialog opened with.
+    const current = () => {
+      const owner = this._data.kids.find((entry) => entry.id === kid.id);
+      return (owner ? owner.timetables : []).find((entry) => entry.id === timetable.id) || timetable;
+    };
+
+    const renderHours = () => {
+      const periods = orderedPeriods(current());
+      hours.replaceChildren(
+        ...(periods.length
+          ? periods.map((period, index) =>
+              h(
+                "div",
+                { class: "row spread period-row" },
+                h("span", {
+                  text: `${fmtTime(this._hass, period.start)} – ${fmtTime(this._hass, period.end)}`,
+                }),
+                this._rowMenu(
+                  () => this._editPeriod(kid, current(), index, renderHours),
+                  () => this._deletePeriod(kid, current(), index, renderHours)
+                )
+              )
+            )
+          : [h("p", { class: "empty", text: _t(this._hass, "timetable.no_periods") })]),
+        h(
+          "div",
+          { class: "row" },
+          this._button({
+            label: _t(this._hass, "timetable.add_period"),
+            appearance: "filled",
+            onClick: () => this._editPeriod(kid, current(), null, renderHours),
+          })
+        )
+      );
+    };
+
+    const submit = async () => {
+      const values = {};
+      for (const field of fields) {
+        const value = controls[field.key].read();
+        if (field.required && !value) {
+          controls[field.key].focus();
+          return;
+        }
+        values[field.key] = value;
+      }
+      surface.close();
+      await this._saveTimetable(kid, current(), {
+        label: values.label,
+        valid_from: values.valid_from,
+        valid_to: values.valid_to || null,
+        show_weekend: weekend,
+      });
+    };
+
+    surface = this._openDialogSurface({
       title: _t(this._hass, "timetable.edit_title"),
-      fields: [
+      onDismiss: () => {},
+      actions: [
         {
-          key: "label",
-          label: _t(this._hass, "timetable.label"),
-          value: timetable.label,
-          required: true,
-          placeholder: _t(this._hass, "timetable.label_placeholder"),
+          element: this._button({
+            label: _t(this._hass, "common.delete"),
+            className: "dialog-delete",
+            variant: "danger",
+            appearance: "plain",
+            onClick: () => {
+              surface.close();
+              this._deleteTimetable(kid, timetable);
+            },
+          }),
         },
         {
-          key: "valid_from",
-          label: _t(this._hass, "timetable.valid_from"),
-          type: "date",
-          value: timetable.valid_from,
-          required: true,
+          element: this._button({
+            label: _t(this._hass, "common.cancel"),
+            className: "dialog-cancel",
+            appearance: "plain",
+            onClick: () => surface.close(),
+          }),
         },
         {
-          key: "valid_to",
-          label: _t(this._hass, "timetable.valid_to"),
-          type: "date",
-          value: timetable.valid_to || "",
+          primary: true,
+          element: this._button({
+            label: _t(this._hass, "common.save"),
+            className: "dialog-submit",
+            onClick: submit,
+          }),
         },
       ],
-      deletable: true,
     });
-    if (!values) return;
-    if (values.__deleted) {
-      await this._deleteTimetable(kid, timetable);
-      return;
+
+    for (const field of fields) {
+      const control = this._dialogField(field);
+      controls[field.key] = control;
+      surface.body.appendChild(
+        control.labelled
+          ? control.element
+          : h("label", { class: "field" }, field.label, control.element)
+      );
     }
-    await this._saveTimetable(kid, timetable, {
-      label: values.label,
-      valid_from: values.valid_from,
-      valid_to: values.valid_to || null,
-    });
+    surface.body.appendChild(
+      this._checkbox({
+        checked: weekend,
+        label: _t(this._hass, "timetable.show_weekend"),
+        onChange: (checked) => {
+          weekend = checked;
+        },
+      })
+    );
+    surface.body.appendChild(h("h3", { text: _t(this._hass, "timetable.hours") }));
+    surface.body.appendChild(hours);
+    surface.body.appendChild(error);
+    renderHours();
   }
 
   async _deleteTimetable(kid, timetable) {
@@ -2558,6 +2689,7 @@ class SchoolTimetablePanel extends HTMLElement {
       timetable_id: timetable.id,
     });
     this._timetableId = null;
+    this._render();
   }
 
   _renderDaysOffCard(kid) {
