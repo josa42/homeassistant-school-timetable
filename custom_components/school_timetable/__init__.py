@@ -93,7 +93,7 @@ async def _async_register_panel(hass: HomeAssistant) -> None:
         module_url=f"{PANEL_ASSET_URL}?v={PANEL_VERSION}",
         sidebar_title=PANEL_TITLE.get(language, PANEL_TITLE["en"]),
         sidebar_icon=PANEL_ICON,
-        require_admin=True,
+        require_admin=False,
         embed_iframe=False,
     )
     _LOGGER.debug("Registered %s panel at /%s", DOMAIN, PANEL_URL_PATH)
