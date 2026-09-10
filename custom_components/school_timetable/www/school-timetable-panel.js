@@ -37,7 +37,7 @@ const STRINGS = {
     "timetable.section": "Timetables",
     "timetable.add": "Add timetable",
     "timetable.add_title": "Add timetable",
-    "timetable.copy_hint": "Starts as a copy of the most recent timetable.",
+    "timetable.new_hint": "Starts with the default times from settings and no subjects.",
     "timetable.empty": "No timetable yet. Add one to start filling in lessons.",
     "timetable.label": "Label",
     "timetable.label_placeholder": "2026/27",
@@ -115,7 +115,7 @@ const STRINGS = {
     "timetable.section": "Stundenpläne",
     "timetable.add": "Stundenplan hinzufügen",
     "timetable.add_title": "Stundenplan hinzufügen",
-    "timetable.copy_hint": "Startet als Kopie des neuesten Stundenplans.",
+    "timetable.new_hint": "Startet mit den Standardzeiten aus den Einstellungen, ohne Fächer.",
     "timetable.empty": "Noch kein Stundenplan. Lege einen an, um Fächer einzutragen.",
     "timetable.label": "Bezeichnung",
     "timetable.label_placeholder": "2026/27",
@@ -171,16 +171,6 @@ const STRINGS = {
     "weekday.6": "So",
   },
 };
-
-// A sensible German bell schedule, used for a kid's very first timetable.
-const DEFAULT_PERIODS = [
-  { period: 1, start: "08:00", end: "08:45" },
-  { period: 2, start: "08:50", end: "09:35" },
-  { period: 3, start: "09:55", end: "10:40" },
-  { period: 4, start: "10:45", end: "11:30" },
-  { period: 5, start: "11:50", end: "12:35" },
-  { period: 6, start: "12:40", end: "13:25" },
-];
 
 // home-assistant-js-websocket rejects with a bare numeric code when the
 // connection itself fails, and with {code, message} for command errors. Neither
@@ -1163,10 +1153,9 @@ class SchoolTimetablePanel extends HTMLElement {
   }
 
   async _addTimetable(kid) {
-    const previous = kid.timetables.length ? kid.timetables[kid.timetables.length - 1] : null;
     const values = await this._formDialog({
       title: _t(this._hass, "timetable.add_title"),
-      description: previous ? _t(this._hass, "timetable.copy_hint") : null,
+      description: _t(this._hass, "timetable.new_hint"),
       fields: [
         { key: "label", label: _t(this._hass, "timetable.label"), required: true, placeholder: _t(this._hass, "timetable.label_placeholder") },
         { key: "valid_from", label: _t(this._hass, "timetable.valid_from"), type: "date", value: todayIso(), required: true },
@@ -1179,12 +1168,11 @@ class SchoolTimetablePanel extends HTMLElement {
     const result = await this._call({
       type: "school_timetable/timetable/save",
       kid_id: kid.id,
+      // No periods key at all: the store seeds the configured defaults.
       timetable: {
         label: values.label,
         valid_from: values.valid_from,
         valid_to: values.valid_to || null,
-        periods: previous ? previous.periods : DEFAULT_PERIODS,
-        lessons: previous ? previous.lessons : [],
       },
     });
     this._timetableId = result.timetable_id;

@@ -153,6 +153,42 @@ async def test_days_off_are_replaced_and_sorted(store: SchoolTimetableStore) -> 
     assert [entry.date.isoformat() for entry in kid.days_off] == ["2026-11-02", "2026-12-08"]
 
 
+async def test_a_new_timetable_seeds_the_default_bell_schedule(
+    store: SchoolTimetableStore,
+) -> None:
+    created = await store.async_save_timetable(
+        KID_ID, {"label": "2027/28", "valid_from": "2027-08-09", "valid_to": None}
+    )
+
+    assert [period.start.isoformat() for period in created.periods][:2] == ["08:00:00", "08:50:00"]
+    assert created.lessons == []
+
+
+async def test_settings_change_what_a_new_timetable_starts_from(
+    store: SchoolTimetableStore,
+) -> None:
+    await store.async_set_settings(
+        {"default_periods": [{"period": 1, "start": "07:45", "end": "08:30"}]}
+    )
+    created = await store.async_save_timetable(
+        KID_ID, {"label": "2027/28", "valid_from": "2027-08-09", "valid_to": None}
+    )
+
+    assert [(p.start.isoformat(), p.end.isoformat()) for p in created.periods] == [
+        ("07:45:00", "08:30:00")
+    ]
+
+
+async def test_clearing_every_period_is_not_refilled(store: SchoolTimetableStore) -> None:
+    """An explicit empty list means empty, otherwise a deletion would undo itself."""
+    raw = sample_data()["kids"][0]["timetables"][0]
+    raw["periods"] = []
+
+    saved = await store.async_save_timetable(KID_ID, raw)
+
+    assert saved.periods == []
+
+
 def _holiday(uid, name, start, end) -> ImportedHoliday:
     return ImportedHoliday(
         uid=uid, name=name, start=date.fromisoformat(start), end=date.fromisoformat(end)

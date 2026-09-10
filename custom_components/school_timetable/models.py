@@ -16,7 +16,7 @@ import logging
 from typing import Any
 from uuid import uuid4
 
-from .const import SOURCE_ICS, SOURCE_MANUAL, WEEK_EVERY
+from .const import DEFAULT_PERIOD_TIMES, SOURCE_ICS, SOURCE_MANUAL, WEEK_EVERY
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -300,11 +300,38 @@ class ClosedDay:
 
 
 @dataclass(slots=True)
+class Settings:
+    """Panel-wide preferences. Currently the bell schedule a new timetable starts from."""
+
+    default_periods: list[Period] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"default_periods": [period.to_dict() for period in self.default_periods]}
+
+    @classmethod
+    def from_dict(cls, data: Any) -> Settings:
+        raw = data.get("default_periods") if isinstance(data, dict) else None
+        periods = [p for p in (Period.from_dict(entry) for entry in raw or []) if p]
+        if not periods:
+            periods = default_periods()
+        return cls(default_periods=sorted(periods, key=lambda period: period.start))
+
+
+def default_periods() -> list[Period]:
+    """The seed bell schedule, used until the user edits it in settings."""
+    return [
+        Period(period=index + 1, start=parse_time(start), end=parse_time(end))
+        for index, (start, end) in enumerate(DEFAULT_PERIOD_TIMES)
+    ]
+
+
+@dataclass(slots=True)
 class SchoolData:
     """The whole persisted document."""
 
     kids: list[Kid] = field(default_factory=list)
     closed_days: list[ClosedDay] = field(default_factory=list)
+    settings: Settings = field(default_factory=lambda: Settings(default_periods=default_periods()))
 
     def kid(self, kid_id: str) -> Kid | None:
         return next((kid for kid in self.kids if kid.id == kid_id), None)
@@ -316,6 +343,7 @@ class SchoolData:
         return {
             "kids": [kid.to_dict() for kid in self.kids],
             "closed_days": [entry.to_dict() for entry in self.closed_days],
+            "settings": self.settings.to_dict(),
         }
 
     @classmethod
@@ -324,4 +352,8 @@ class SchoolData:
             return cls()
         kids = [kid for kid in (Kid.from_dict(raw) for raw in data.get("kids") or []) if kid]
         closed = [c for c in (ClosedDay.from_dict(raw) for raw in data.get("closed_days") or []) if c]
-        return cls(kids=kids, closed_days=sorted(closed, key=lambda entry: entry.start))
+        return cls(
+            kids=kids,
+            closed_days=sorted(closed, key=lambda entry: entry.start),
+            settings=Settings.from_dict(data.get("settings")),
+        )

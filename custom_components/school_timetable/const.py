@@ -19,6 +19,17 @@ PANEL_COMPONENT_NAME: Final = "school-timetable-panel"
 PANEL_VERSION: Final = "1.0.0"
 PANEL_ICON: Final = "mdi:school"
 
+# Seed bell schedule, used until the user edits the defaults in settings. A
+# common German Grundschule day.
+DEFAULT_PERIOD_TIMES: Final[tuple[tuple[str, str], ...]] = (
+    ("08:00", "08:45"),
+    ("08:50", "09:35"),
+    ("09:55", "10:40"),
+    ("10:45", "11:30"),
+    ("11:50", "12:35"),
+    ("12:40", "13:25"),
+)
+
 # Week selector on a lesson. Only WEEK_EVERY is produced today; the field is
 # persisted and round-tripped so alternating A/B weeks can be added later
 # without migrating stored data. Event generation ignores the value.

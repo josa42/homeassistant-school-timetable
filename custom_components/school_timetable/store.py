@@ -17,7 +17,7 @@ from homeassistant.helpers.storage import Store
 
 from .const import SOURCE_ICS, STORAGE_KEY, STORAGE_VERSION
 from .ics import ImportedHoliday
-from .models import ClosedDay, DayOff, Kid, SchoolData, Timetable, new_id
+from .models import ClosedDay, DayOff, Kid, Period, SchoolData, Settings, Timetable, new_id
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -110,6 +110,14 @@ class SchoolTimetableStore:
         timetable = Timetable.from_dict({**raw, "id": raw.get("id") or new_id()})
         if timetable is None:
             raise ValueError("Invalid timetable")
+        # A brand new timetable that carries no bell schedule starts from the
+        # configured defaults. Only when the key is absent entirely, so clearing
+        # every period by hand and saving does not silently refill it.
+        if "periods" not in raw and not timetable.periods:
+            timetable.periods = [
+                Period(period=period.period, start=period.start, end=period.end)
+                for period in self.data.settings.default_periods
+            ]
         clash = next(
             (
                 other
@@ -137,6 +145,14 @@ class SchoolTimetableStore:
             raise NotFound(f"Unknown timetable {timetable_id}")
         kid.timetables = remaining
         await self.async_save()
+
+    # --- settings --------------------------------------------------------
+
+    async def async_set_settings(self, raw: dict[str, Any]) -> Settings:
+        """Replace the settings document."""
+        self.data.settings = Settings.from_dict(raw)
+        await self.async_save()
+        return self.data.settings
 
     # --- closed days -----------------------------------------------------
 

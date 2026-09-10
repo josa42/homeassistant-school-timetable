@@ -56,11 +56,10 @@ off.
 Open **Stundenplan** in the sidebar.
 
 1. **Add a kid.** A calendar entity named `Schule (<name>)` appears right away.
-2. **Add a timetable.** Give it a label such as `2026/27` and a start date. The
-   first one starts from a standard German bell schedule; later ones start as a
-   copy of the previous timetable, so a yearly rollover is a matter of fixing up
-   a few subjects.
-3. **Set the bell schedule**, then fill in subjects in the grid. Save.
+2. **Add a timetable.** Give it a label such as `2026/27` and a start date. It
+   starts empty, with the default lesson times from Settings.
+3. **Fill in the subjects.** Click a row's times to change, add or remove a
+   period. Save.
 4. **Add holidays** on the Ferien tab, by hand or by importing an ICS file.
 
 ### Timetables and dates

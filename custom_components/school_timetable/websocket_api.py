@@ -52,7 +52,8 @@ _TIMETABLE_SCHEMA = vol.Schema(
         vol.Required("label"): str,
         vol.Required("valid_from"): _DATE,
         vol.Optional("valid_to"): vol.Any(_DATE, None),
-        vol.Optional("periods", default=list): [_PERIOD_SCHEMA],
+        # No default: an absent key means "seed from the settings defaults".
+        vol.Optional("periods"): [_PERIOD_SCHEMA],
         vol.Optional("lessons", default=list): [_LESSON_SCHEMA],
     }
 )
@@ -89,6 +90,7 @@ def async_register(hass: HomeAssistant) -> None:
         handle_save_timetable,
         handle_delete_timetable,
         handle_set_closed_days,
+        handle_set_settings,
         handle_import_ics,
     ):
         websocket_api.async_register_command(hass, handler)
@@ -239,6 +241,22 @@ async def handle_save_timetable(hass, connection, msg, store) -> None:
 @_with_store
 async def handle_delete_timetable(hass, connection, msg, store) -> None:
     await store.async_delete_timetable(msg["kid_id"], msg["timetable_id"])
+    _send_document(connection, msg["id"], store)
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "school_timetable/settings/set",
+        vol.Required("settings"): vol.Schema(
+            {vol.Required("default_periods"): [_PERIOD_SCHEMA]}
+        ),
+    }
+)
+@websocket_api.require_admin
+@websocket_api.async_response
+@_with_store
+async def handle_set_settings(hass, connection, msg, store) -> None:
+    await store.async_set_settings(msg["settings"])
     _send_document(connection, msg["id"], store)
 
 

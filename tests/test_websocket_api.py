@@ -106,6 +106,61 @@ async def test_set_closed_days_replaces_the_list(
     assert [entry["name"] for entry in msg["result"]["closed_days"]] == ["Osterferien"]
 
 
+async def test_set_settings_and_seed_a_timetable(
+    hass: HomeAssistant, hass_storage, hass_ws_client
+) -> None:
+    seed_storage(hass_storage)
+    await setup_integration(hass)
+    client = await hass_ws_client(hass)
+
+    await client.send_json_auto_id(
+        {
+            "type": "school_timetable/settings/set",
+            "settings": {"default_periods": [{"period": 1, "start": "07:45", "end": "08:30"}]},
+        }
+    )
+    msg = await client.receive_json()
+    assert msg["success"]
+    assert msg["result"]["settings"]["default_periods"] == [
+        {"period": 1, "start": "07:45", "end": "08:30"}
+    ]
+
+    await client.send_json_auto_id(
+        {
+            "type": "school_timetable/timetable/save",
+            "kid_id": KID_ID,
+            "timetable": {"label": "2027/28", "valid_from": "2027-08-09", "valid_to": None},
+        }
+    )
+    msg = await client.receive_json()
+    created = next(
+        tt for tt in msg["result"]["kids"][0]["timetables"] if tt["id"] == msg["result"]["timetable_id"]
+    )
+
+    assert created["periods"] == [{"period": 1, "start": "07:45", "end": "08:30"}]
+    assert created["lessons"] == []
+
+
+async def test_overlapping_range_is_an_overlap_error(
+    hass: HomeAssistant, hass_storage, hass_ws_client
+) -> None:
+    seed_storage(hass_storage)
+    await setup_integration(hass)
+    client = await hass_ws_client(hass)
+
+    await client.send_json_auto_id(
+        {
+            "type": "school_timetable/timetable/save",
+            "kid_id": KID_ID,
+            "timetable": {"label": "clash", "valid_from": "2026-09-01", "valid_to": "2026-12-01"},
+        }
+    )
+    msg = await client.receive_json()
+
+    assert not msg["success"]
+    assert msg["error"]["code"] == "overlap"
+
+
 async def test_import_ics_content(hass: HomeAssistant, hass_storage, hass_ws_client) -> None:
     seed_storage(hass_storage)
     await setup_integration(hass)
