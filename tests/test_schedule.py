@@ -97,6 +97,31 @@ def test_lesson_referencing_a_deleted_period_is_skipped() -> None:
     assert [lesson.subject for lesson in day.lessons] == ["Mathe", "Deutsch"]
 
 
+def test_doppelstunde_runs_to_the_end_of_the_period_it_covers() -> None:
+    raw = sample_data()
+    raw["kids"][0]["timetables"][0]["lessons"] = [
+        {"weekday": 0, "period": 1, "subject": "Kunst", "week": "every", "span": 2}
+    ]
+    data = SchoolData.from_dict(raw)
+    day = school_day_for(data, data.kids[0], date(2026, 9, 14))
+
+    assert [lesson.subject for lesson in day.lessons] == ["Kunst"]
+    assert day.start.isoformat() == "08:00:00"
+    assert day.end.isoformat() == "09:35:00"
+    assert day.description() == "08:00 Kunst"
+
+
+def test_a_span_past_the_last_period_stops_at_its_own() -> None:
+    raw = sample_data()
+    raw["kids"][0]["timetables"][0]["lessons"] = [
+        {"weekday": 0, "period": 3, "subject": "Projekt", "week": "every", "span": 4}
+    ]
+    data = SchoolData.from_dict(raw)
+    day = school_day_for(data, data.kids[0], date(2026, 9, 14))
+
+    assert day.end.isoformat() == "10:40:00"
+
+
 def test_range_generation_covers_only_school_days() -> None:
     data = _data()
     days = list(school_days(data, data.kids[0], date(2026, 9, 14), date(2026, 9, 20)))

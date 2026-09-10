@@ -20,6 +20,8 @@ A date produces an event for a kid when all of these hold:
 | The date is not a school or public holiday | Shared holiday list |
 | The kid has no personal day off | Days off, per kid |
 
+Classes with the same name get the same colour, so a week reads at a glance.
+
 The event runs from the first lesson's start to the last lesson's end:
 
 ```yaml
@@ -59,8 +61,11 @@ Open **Stundenplan** in the sidebar.
 1. **Add a kid.** A calendar entity named `Schule (<name>)` appears right away.
 2. **Add a timetable.** Give it a label such as `2026/27` and a start date. It
    starts empty, with the default lesson times from Settings.
-3. **Fill in the subjects.** Click a row's times to change, add or remove a
-   period. Save.
+3. **Fill in the subjects.** The week is laid out like a calendar: click a slot
+   to name the class, click an entry to rename or remove it. A class can run
+   over two periods, for a Doppelstunde. Each dialog saves on its own, so there
+   is nothing to save separately. Click a row's times to move, add or remove a
+   period.
 
 A kid's page has two views, switched with the toggle in the top right: the
 timetable, and that kid's days off. Every view has a button in the bottom corner

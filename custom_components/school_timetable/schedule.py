@@ -79,7 +79,12 @@ def school_day_for(data: SchoolData, kid: Kid, day: date) -> SchoolDay | None:
             period=lesson.period,
             subject=lesson.subject,
             start=periods[lesson.period].start,
-            end=periods[lesson.period].end,
+            # A Doppelstunde runs to the end of the last period it covers, or
+            # to the end of its own if the schedule is shorter than its span.
+            end=max(
+                (periods[number].end for number in lesson.covers() if number in periods),
+                default=periods[lesson.period].end,
+            ),
         )
         # A lesson whose period was deleted from the bell schedule has no times
         # and is skipped; the panel only offers defined periods.

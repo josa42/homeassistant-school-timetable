@@ -43,6 +43,8 @@ _LESSON_SCHEMA = vol.Schema(
         vol.Required("period"): int,
         vol.Required("subject"): str,
         vol.Optional("week", default=WEEK_EVERY): vol.In([WEEK_EVERY, WEEK_A, WEEK_B]),
+        # How many consecutive periods the lesson covers: 2 for a Doppelstunde.
+        vol.Optional("span", default=1): vol.All(int, vol.Range(min=1, max=12)),
     }
 )
 

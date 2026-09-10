@@ -74,6 +74,16 @@ async def test_saving_without_an_id_creates_a_timetable(store: SchoolTimetableSt
     assert len(store.data.kid(KID_ID).timetables) == 2
 
 
+async def test_span_survives_a_round_trip(store: SchoolTimetableStore) -> None:
+    raw = sample_data()["kids"][0]["timetables"][0]
+    raw["lessons"] = [{"weekday": 0, "period": 1, "subject": "Kunst", "span": 2}]
+
+    saved = await store.async_save_timetable(KID_ID, raw)
+
+    assert saved.lessons[0].span == 2
+    assert list(saved.lessons[0].covers()) == [1, 2]
+
+
 async def test_overlapping_ranges_are_allowed(store: SchoolTimetableStore) -> None:
     """The generator resolves a shared date, so the store does not police it."""
     created = await store.async_save_timetable(
@@ -89,6 +99,14 @@ async def test_overlapping_ranges_are_allowed(store: SchoolTimetableStore) -> No
 
     assert created.id
     assert len(store.data.kid(KID_ID).timetables) == 2
+
+
+async def test_a_missing_span_means_one_period(store: SchoolTimetableStore) -> None:
+    raw = sample_data()["kids"][0]["timetables"][0]
+
+    saved = await store.async_save_timetable(KID_ID, raw)
+
+    assert {lesson.span for lesson in saved.lessons} == {1}
 
 
 async def test_days_off_are_replaced_and_sorted(store: SchoolTimetableStore) -> None:

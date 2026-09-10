@@ -89,7 +89,10 @@ class Period:
 
 @dataclass(slots=True)
 class Lesson:
-    """One subject taught in a given period on a given weekday.
+    """One subject taught on a weekday, starting at `period`.
+
+    `span` is how many consecutive periods it covers, so a Doppelstunde is a
+    single lesson with span 2 rather than two lessons.
 
     `week` is reserved for alternating A/B weeks; it is persisted and returned
     to the frontend but ignored when generating events (see const.WEEK_EVERY).
@@ -99,6 +102,11 @@ class Lesson:
     period: int
     subject: str
     week: str = WEEK_EVERY
+    span: int = 1
+
+    def covers(self) -> range:
+        """The period numbers this lesson occupies."""
+        return range(self.period, self.period + self.span)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -106,6 +114,7 @@ class Lesson:
             "period": self.period,
             "subject": self.subject,
             "week": self.week,
+            "span": self.span,
         }
 
     @classmethod
@@ -120,11 +129,16 @@ class Lesson:
         subject = str(data.get("subject") or "").strip()
         if not subject or not 0 <= weekday < WEEKDAY_COUNT:
             return None
+        try:
+            span = max(1, int(data.get("span") or 1))
+        except (TypeError, ValueError):
+            span = 1
         return cls(
             weekday=weekday,
             period=period,
             subject=subject,
             week=str(data.get("week") or WEEK_EVERY),
+            span=span,
         )
 
 

@@ -65,7 +65,7 @@ async def test_save_timetable_round_trips(hass: HomeAssistant, hass_storage, has
     timetable = msg["result"]["kids"][0]["timetables"][0]
     assert timetable["valid_to"] is None
     assert timetable["lessons"] == [
-        {"weekday": 4, "period": 1, "subject": "Kunst", "week": "every"}
+        {"weekday": 4, "period": 1, "subject": "Kunst", "week": "every", "span": 1}
     ]
 
 

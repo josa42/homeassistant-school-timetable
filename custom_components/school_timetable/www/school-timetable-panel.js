@@ -76,7 +76,6 @@ const STRINGS = {
     "timetable.valid_to": "Valid to",
     "timetable.open_ended": "open-ended",
     "timetable.delete_confirm": "Delete the timetable “{label}”?",
-    "timetable.unsaved": "Unsaved changes",
     "timetable.period": "Period",
     "timetable.edit_period": "Edit times",
     "timetable.start": "Start",
@@ -85,6 +84,8 @@ const STRINGS = {
     "timetable.overlap": "This overlaps another period.",
     "timetable.end_before_start": "The end must be after the start.",
     "timetable.lessons": "Lessons",
+    "timetable.subject": "Subject",
+    "timetable.duration": "Duration",
     "timetable.no_periods": "No periods yet. Add one to start filling in lessons.",
     "timetable.show_weekend": "Show weekend",
     "days_off.section": "Days off",
@@ -170,7 +171,6 @@ const STRINGS = {
     "timetable.valid_to": "Gültig bis",
     "timetable.open_ended": "unbefristet",
     "timetable.delete_confirm": "Stundenplan „{label}“ löschen?",
-    "timetable.unsaved": "Nicht gespeicherte Änderungen",
     "timetable.period": "Stunde",
     "timetable.edit_period": "Zeiten bearbeiten",
     "timetable.start": "Beginn",
@@ -179,6 +179,8 @@ const STRINGS = {
     "timetable.overlap": "Überschneidet sich mit einer anderen Stunde.",
     "timetable.end_before_start": "Das Ende muss nach dem Beginn liegen.",
     "timetable.lessons": "Fächer",
+    "timetable.subject": "Fach",
+    "timetable.duration": "Dauer",
     "timetable.no_periods": "Noch keine Stunden. Füge eine hinzu, um Fächer einzutragen.",
     "timetable.show_weekend": "Wochenende anzeigen",
     "days_off.section": "Freie Tage",
@@ -245,6 +247,46 @@ function _errorText(hass, err) {
   if (WS_ERROR_CODES[code]) return _t(hass, WS_ERROR_CODES[code]);
   if (err && typeof err === "object" && err.message) return err.message;
   return _t(hass, "error.unknown");
+}
+
+// Home Assistant's own palette, limited to the shades that carry white text.
+// A subject keeps its colour wherever it appears, so a week reads like a
+// calendar rather than a table of words.
+const SUBJECT_COLORS = [
+  ["--blue-color", "#2196f3"],
+  ["--green-color", "#4caf50"],
+  ["--deep-orange-color", "#ff6f22"],
+  ["--purple-color", "#926bc7"],
+  ["--teal-color", "#009688"],
+  ["--pink-color", "#e91e63"],
+  ["--indigo-color", "#3f51b5"],
+  ["--orange-color", "#ff9800"],
+  ["--cyan-color", "#00bcd4"],
+  ["--red-color", "#f44336"],
+  ["--blue-grey-color", "#607d8b"],
+  ["--brown-color", "#795548"],
+];
+
+function lessonSpan(lesson) {
+  return Math.max(1, Number(lesson.span) || 1);
+}
+
+function orderedPeriods(timetable) {
+  return [...timetable.periods].sort((left, right) => left.start.localeCompare(right.start));
+}
+
+function lessonCovers(lesson, periodNumber) {
+  return periodNumber >= lesson.period && periodNumber < lesson.period + lessonSpan(lesson);
+}
+
+function subjectColor(subject) {
+  const key = String(subject || "").trim().toLowerCase();
+  let hash = 0;
+  for (let index = 0; index < key.length; index++) {
+    hash = (hash * 31 + key.charCodeAt(index)) >>> 0;
+  }
+  const [token, fallback] = SUBJECT_COLORS[hash % SUBJECT_COLORS.length];
+  return `var(${token}, ${fallback})`;
 }
 
 function _t(hass, key, params) {
@@ -657,6 +699,44 @@ const STYLE = `
   }
   td { padding: 4px 8px; border-top: 1px solid var(--divider-color, #e0e0e0); }
   .scroll { overflow-x: auto; }
+  /* A week grid: fixed-width time column, one equal column per weekday. */
+  table.cal { table-layout: fixed; border-collapse: separate; border-spacing: 4px 4px; }
+  table.cal th { text-align: center; font-size: 13px; padding-bottom: 0; }
+  table.cal td { border-top: 0; padding: 0; }
+  table.cal .cal-times { width: 120px; white-space: nowrap; text-align: end; vertical-align: middle; }
+  .cal-cell { height: 52px; }
+  .cal-entry,
+  .cal-slot {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+    min-height: 52px;
+    box-sizing: border-box;
+    padding: 6px 10px;
+    border-radius: var(--ha-border-radius-md, 8px);
+    font-size: 14px;
+    text-align: start;
+    overflow: hidden;
+  }
+  /* An entry looks like a calendar event: solid subject colour, white label. */
+  .cal-entry {
+    border: 0;
+    background: var(--st-subject, var(--primary-color, #03a9f4));
+    color: var(--text-primary-color, #fff);
+    box-shadow: none;
+  }
+  .cal-entry:hover { filter: brightness(1.06); background: var(--st-subject, var(--primary-color, #03a9f4)); }
+  .cal-subject { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cal-slot {
+    justify-content: center;
+    border: 1px dashed var(--divider-color, #e0e0e0);
+    background: none;
+    color: var(--secondary-text-color, #727272);
+    opacity: 0.55;
+  }
+  .cal-slot:hover { opacity: 1; background: var(--secondary-background-color, #e5e5e5); }
+  .cal-slot svg { width: 20px; height: 20px; }
   .grid input { width: 100%; }
   .grid th { min-width: 110px; }
   .grid td.period-head { white-space: nowrap; }
@@ -854,8 +934,6 @@ class SchoolTimetablePanel extends HTMLElement {
     this._view = "kid";
     this._kidId = null;
     this._timetableId = null;
-    this._draft = null;
-    this._dirty = false;
     this._showWeekend = false;
     this._selected = new Set();
     this._kidTab = "timetable";
@@ -1176,7 +1254,13 @@ class SchoolTimetablePanel extends HTMLElement {
       const element = document.createElement("ha-select");
       element.options = options;
       element.value = value;
-      const handler = () => onChange(String(element.value ?? ""));
+      // ha-select is controlled: it reports the new value in the event and
+      // leaves its own property alone, so read the detail and write it back.
+      const handler = (event) => {
+        const next = event.detail?.value ?? element.value ?? "";
+        element.value = next;
+        onChange(String(next));
+      };
       element.addEventListener("value-changed", handler);
       element.addEventListener("change", handler);
       return element;
@@ -1195,6 +1279,22 @@ class SchoolTimetablePanel extends HTMLElement {
   // which follows the browser.
   _dialogField(field) {
     const type = field.type || "text";
+    if (type === "select") {
+      let current = field.value;
+      const element = this._select({
+        value: field.value,
+        options: field.options,
+        onChange: (value) => {
+          current = value;
+        },
+      });
+      return {
+        element,
+        read: () => String(current ?? element.value ?? ""),
+        focus: () => element.focus?.(),
+        labelled: false,
+      };
+    }
     // ha-selector is available from the first paint and lazy-loads ha-date-input
     // or ha-time-input itself, which is what makes these follow hass.locale.
     if (this._haSelector && (type === "date" || type === "time")) {
@@ -1730,8 +1830,6 @@ class SchoolTimetablePanel extends HTMLElement {
     if (kidId !== undefined) {
       this._kidId = kidId;
       this._timetableId = null;
-      this._draft = null;
-      this._dirty = false;
     }
     this._render();
   }
@@ -2034,8 +2132,6 @@ class SchoolTimetablePanel extends HTMLElement {
     const result = await this._call({ type: "school_timetable/kid/add", name: values.name });
     this._kidId = result.kid_id;
     this._timetableId = null;
-    this._draft = null;
-    this._dirty = false;
   }
 
   async _renameKid(kid) {
@@ -2056,8 +2152,6 @@ class SchoolTimetablePanel extends HTMLElement {
     if (!(await this._confirm(_t(this._hass, "kids.delete_confirm", { name: kid.name })))) return;
     await this._call({ type: "school_timetable/kid/delete", kid_id: kid.id });
     this._kidId = null;
-    this._draft = null;
-    this._dirty = false;
   }
 
   // --- timetable -------------------------------------------------------
@@ -2081,8 +2175,6 @@ class SchoolTimetablePanel extends HTMLElement {
       })),
       onChange: (value) => {
         this._timetableId = value;
-        this._dirty = false;
-        this._draft = null;
         this._render();
       },
     });
@@ -2102,73 +2194,80 @@ class SchoolTimetablePanel extends HTMLElement {
         h("p", { class: "empty", text: _t(this._hass, "timetable.empty") })
       );
     }
-
-    if (!this._dirty || !this._draft || this._draft.id !== timetable.id) {
-      this._draft = this._makeDraft(timetable);
-      this._dirty = false;
-    }
-
-    return h("div", { class: "card" }, head, ...this._renderEditor(kid));
+    return h("div", { class: "card" }, head, ...this._renderWeek(kid, timetable));
   }
 
-  _makeDraft(timetable) {
-    const periods = timetable.periods.map((period) => ({ ...period }));
-    const cells = {};
-    for (const lesson of timetable.lessons) {
-      const index = periods.findIndex((period) => period.period === lesson.period);
-      if (index < 0) continue;
-      cells[`${lesson.weekday}:${index}`] = { subject: lesson.subject, week: lesson.week || "every" };
-    }
-    return {
-      id: timetable.id,
-      label: timetable.label || "",
-      valid_from: timetable.valid_from,
-      valid_to: timetable.valid_to || "",
-      periods,
-      cells,
-    };
-  }
-
-  _markDirty() {
-    this._dirty = true;
-    if (this._dirtyBadge) this._dirtyBadge.textContent = _t(this._hass, "timetable.unsaved");
-  }
-
-  _renderEditor(kid) {
-    const draft = this._draft;
-
+  // A week the shape of a calendar: weekdays across, periods down, and each
+  // lesson an entry in its slot. Everything is edited in a dialog, so there is
+  // nothing to save separately.
+  _renderWeek(kid, timetable) {
     const weekdays = this._showWeekend ? [0, 1, 2, 3, 4, 5, 6] : [0, 1, 2, 3, 4];
+    const periods = orderedPeriods(timetable);
+    const lessonAt = (weekday, period) =>
+      timetable.lessons.find(
+        (lesson) => lesson.weekday === weekday && lesson.period === period.period
+      );
 
-    // Bell schedule and lessons are one table: each row is a period, labelled
-    // with its times. Periods are ordered by start time and numbered by
-    // position, so there is no period number to keep in sync by hand.
-    const grid = draft.periods.length
+    // A lesson covering more than one period leaves the slots underneath it
+    // empty, the way a longer calendar entry does.
+    const covered = new Set();
+    periods.forEach((period, index) => {
+      for (const day of weekdays) {
+        const lesson = lessonAt(day, period);
+        if (!lesson) continue;
+        const span = Math.min(lessonSpan(lesson), periods.length - index);
+        for (let step = 1; step < span; step++) covered.add(`${day}:${index + step}`);
+      }
+    });
+
+    const cell = (weekday, period, index) => {
+      if (covered.has(`${weekday}:${index}`)) return null;
+      const lesson = lessonAt(weekday, period);
+      const span = lesson ? Math.min(lessonSpan(lesson), periods.length - index) : 1;
+      const button = h(
+        "button",
+        {
+          class: lesson ? "cal-entry" : "cal-slot",
+          "aria-label": lesson
+            ? lesson.subject
+            : `${_t(this._hass, `weekday.${weekday}`)} ${fmtTime(this._hass, period.start)}`,
+          onClick: () => this._editLesson(kid, timetable, weekday, period),
+        },
+        lesson ? h("span", { class: "cal-subject", text: lesson.subject }) : icon("plus")
+      );
+      if (lesson) button.style.setProperty("--st-subject", subjectColor(lesson.subject));
+      const td = h("td", { class: "cal-cell" }, button);
+      if (span > 1) td.setAttribute("rowspan", String(span));
+      return td;
+    };
+
+    const grid = periods.length
       ? h(
           "div",
           { class: "scroll" },
           h(
             "table",
-            { class: "grid" },
+            { class: "cal" },
             h(
               "thead",
               {},
               h(
                 "tr",
                 {},
-                h("th", {}),
+                h("th", { class: "cal-times" }),
                 ...weekdays.map((day) => h("th", { text: _t(this._hass, `weekday.${day}`) }))
               )
             ),
             h(
               "tbody",
               {},
-              ...draft.periods.map((period, index) =>
+              ...periods.map((period, index) =>
                 h(
                   "tr",
                   {},
                   h(
                     "td",
-                    { class: "period-head" },
+                    { class: "cal-times" },
                     this._button({
                       label: `${fmtTime(this._hass, period.start)} – ${fmtTime(
                         this._hass,
@@ -2176,36 +2275,16 @@ class SchoolTimetablePanel extends HTMLElement {
                       )}`,
                       className: "link",
                       appearance: "plain",
-                      onClick: () => this._editPeriod(index),
+                      onClick: () => this._editPeriod(kid, timetable, index),
                     })
                   ),
-                  ...weekdays.map((day) => {
-                    const key = `${day}:${index}`;
-                    const cell = draft.cells[key];
-                    return h(
-                      "td",
-                      {},
-                      this._textField({
-                        value: cell ? cell.subject : "",
-                        onInput: (value) => {
-                          if (!value.trim()) delete draft.cells[key];
-                          else draft.cells[key] = { subject: value, week: cell ? cell.week : "every" };
-                          this._markDirty();
-                        },
-                      }).element
-                    );
-                  })
+                  ...weekdays.map((day) => cell(day, period, index))
                 )
               )
             )
           )
         )
       : h("p", { class: "empty", text: _t(this._hass, "timetable.no_periods") });
-
-    this._dirtyBadge = h("span", {
-      class: "status warn",
-      text: this._dirty ? _t(this._hass, "timetable.unsaved") : "",
-    });
 
     return [
       h(
@@ -2228,27 +2307,96 @@ class SchoolTimetablePanel extends HTMLElement {
         this._button({
           label: _t(this._hass, "timetable.add_period"),
           appearance: "filled",
-          onClick: () => this._editPeriod(null),
-        })
-      ),
-      h(
-        "div",
-        { class: "row spread" },
-        this._dirtyBadge,
-        this._button({
-          label: _t(this._hass, "common.save"),
-          className: "primary",
-          onClick: () => this._saveTimetable(kid),
+          onClick: () => this._editPeriod(kid, timetable, null),
         })
       ),
     ];
   }
 
-  async _editPeriod(index) {
-    const values = await this._periodDialog(this._draft.periods, index);
+  async _editLesson(kid, timetable, weekday, period) {
+    const existing = timetable.lessons.find(
+      (lesson) => lesson.weekday === weekday && lesson.period === period.period
+    );
+    const periods = orderedPeriods(timetable);
+    const index = periods.findIndex((entry) => entry.period === period.period);
+
+    // A lesson may grow until the day runs out or another lesson is in the way.
+    let reach = periods.length - index;
+    for (let step = 1; step < reach; step++) {
+      const next = periods[index + step];
+      const blocked = timetable.lessons.some(
+        (lesson) =>
+          lesson !== existing && lesson.weekday === weekday && lessonCovers(lesson, next.period)
+      );
+      if (blocked) {
+        reach = step;
+        break;
+      }
+    }
+    const spans = Array.from({ length: reach }, (_, offset) => {
+      const last = periods[index + offset];
+      return {
+        value: String(offset + 1),
+        label: `${fmtTime(this._hass, period.start)} – ${fmtTime(this._hass, last.end)}`,
+      };
+    });
+
+    const values = await this._formDialog({
+      title: `${_t(this._hass, `weekday.${weekday}`)} · ${fmtTime(
+        this._hass,
+        period.start
+      )} – ${fmtTime(this._hass, period.end)}`,
+      fields: [
+        {
+          key: "subject",
+          label: _t(this._hass, "timetable.subject"),
+          value: existing ? existing.subject : "",
+          required: !existing,
+        },
+        ...(spans.length > 1
+          ? [
+              {
+                key: "span",
+                label: _t(this._hass, "timetable.duration"),
+                type: "select",
+                options: spans,
+                value: String(existing ? Math.min(lessonSpan(existing), reach) : 1),
+              },
+            ]
+          : []),
+      ],
+      deletable: Boolean(existing),
+    });
     if (!values) return;
-    if (values.__deleted) this._removePeriod(index);
-    else this._writePeriod(index, values);
+
+    const lessons = timetable.lessons.filter(
+      (lesson) => !(lesson.weekday === weekday && lesson.period === period.period)
+    );
+    // An empty subject clears the slot, same as pressing delete.
+    if (!values.__deleted && values.subject) {
+      lessons.push({
+        weekday,
+        period: period.period,
+        subject: values.subject,
+        week: existing ? existing.week : "every",
+        span: Math.max(1, Number(values.span) || 1),
+      });
+    }
+    await this._saveTimetable(kid, timetable, { lessons });
+  }
+
+  async _editPeriod(kid, timetable, index) {
+    const periods = [...timetable.periods]
+      .sort((left, right) => left.start.localeCompare(right.start))
+      .map((period) => ({ ...period }));
+    const values = await this._periodDialog(periods, index);
+    if (!values) return;
+
+    if (values.__deleted) periods.splice(index, 1);
+    else if (index === null) periods.push({ period: null, start: values.start, end: values.end });
+    else Object.assign(periods[index], { start: values.start, end: values.end });
+
+    await this._savePeriods(kid, timetable, periods);
   }
 
   _periodDialog(periods, index) {
@@ -2287,48 +2435,40 @@ class SchoolTimetablePanel extends HTMLElement {
     return clashes ? _t(this._hass, "timetable.overlap") : null;
   }
 
-  _writePeriod(index, { start, end }) {
-    const draft = this._draft;
-    // Carry the old row position along so the lesson cells can follow their row
-    // when a changed start time re-sorts the table.
-    const rows = draft.periods.map((period, position) => ({ ...period, from: position }));
-    if (index === null) rows.push({ start, end, from: null });
-    else Object.assign(rows[index], { start, end });
-    rows.sort((left, right) => left.start.localeCompare(right.start));
-
-    const cells = {};
-    rows.forEach((row, position) => {
-      if (row.from === null) return;
-      for (let day = 0; day < 7; day++) {
-        const cell = draft.cells[`${day}:${row.from}`];
-        if (cell) cells[`${day}:${position}`] = cell;
-      }
-    });
-
-    draft.periods = rows.map((row, position) => ({
+  // Periods are numbered by their place in the day, so editing a time can
+  // renumber them. Lessons follow the period they were on.
+  async _savePeriods(kid, timetable, rows) {
+    const ordered = [...rows].sort((left, right) => left.start.localeCompare(right.start));
+    const renumbered = ordered.map((row, position) => ({
       period: position + 1,
       start: row.start,
       end: row.end,
     }));
-    draft.cells = cells;
-    this._markDirty();
-    this._render();
+    const moved = new Map();
+    ordered.forEach((row, position) => {
+      if (row.period) moved.set(row.period, position + 1);
+    });
+    const lessons = timetable.lessons
+      .filter((lesson) => moved.has(lesson.period))
+      .map((lesson) => ({ ...lesson, period: moved.get(lesson.period) }));
+
+    await this._saveTimetable(kid, timetable, { periods: renumbered, lessons });
   }
 
-  _removePeriod(index) {
-    const draft = this._draft;
-    draft.periods.splice(index, 1);
-    // Cells are keyed by row position, so everything below the deleted row moves up.
-    const cells = {};
-    for (const [key, cell] of Object.entries(draft.cells)) {
-      const [day, position] = key.split(":").map(Number);
-      if (position === index) continue;
-      cells[`${day}:${position > index ? position - 1 : position}`] = cell;
-    }
-    draft.cells = cells;
-    draft.periods = draft.periods.map((period, position) => ({ ...period, period: position + 1 }));
-    this._markDirty();
-    this._render();
+  async _saveTimetable(kid, timetable, changes) {
+    await this._call({
+      type: "school_timetable/timetable/save",
+      kid_id: kid.id,
+      timetable: {
+        id: timetable.id,
+        label: timetable.label,
+        valid_from: timetable.valid_from,
+        valid_to: timetable.valid_to || null,
+        periods: timetable.periods,
+        lessons: timetable.lessons,
+        ...changes,
+      },
+    });
   }
 
   async _addTimetable(kid) {
@@ -2336,8 +2476,19 @@ class SchoolTimetablePanel extends HTMLElement {
       title: _t(this._hass, "timetable.add_title"),
       description: _t(this._hass, "timetable.new_hint"),
       fields: [
-        { key: "label", label: _t(this._hass, "timetable.label"), required: true, placeholder: _t(this._hass, "timetable.label_placeholder") },
-        { key: "valid_from", label: _t(this._hass, "timetable.valid_from"), type: "date", value: todayIso(), required: true },
+        {
+          key: "label",
+          label: _t(this._hass, "timetable.label"),
+          required: true,
+          placeholder: _t(this._hass, "timetable.label_placeholder"),
+        },
+        {
+          key: "valid_from",
+          label: _t(this._hass, "timetable.valid_from"),
+          type: "date",
+          value: todayIso(),
+          required: true,
+        },
         { key: "valid_to", label: _t(this._hass, "timetable.valid_to"), type: "date" },
       ],
       submitLabel: _t(this._hass, "common.add"),
@@ -2354,8 +2505,6 @@ class SchoolTimetablePanel extends HTMLElement {
       },
     });
     this._timetableId = result.timetable_id;
-    this._draft = null;
-    this._dirty = false;
   }
 
   async _editTimetableDetails(kid, timetable) {
@@ -2390,26 +2539,11 @@ class SchoolTimetablePanel extends HTMLElement {
       await this._deleteTimetable(kid, timetable);
       return;
     }
-
-    // Saving the details saves the grid with it, so an edit in progress is not
-    // silently thrown away.
-    const editing = this._dirty && this._draft && this._draft.id === timetable.id;
-    await this._call({
-      type: "school_timetable/timetable/save",
-      kid_id: kid.id,
-      timetable: {
-        id: timetable.id,
-        label: values.label,
-        valid_from: values.valid_from,
-        valid_to: values.valid_to || null,
-        ...(editing
-          ? this._draftPayload()
-          : { periods: timetable.periods, lessons: timetable.lessons }),
-      },
+    await this._saveTimetable(kid, timetable, {
+      label: values.label,
+      valid_from: values.valid_from,
+      valid_to: values.valid_to || null,
     });
-    this._dirty = false;
-    this._draft = null;
-    this._render();
   }
 
   async _deleteTimetable(kid, timetable) {
@@ -2421,11 +2555,7 @@ class SchoolTimetablePanel extends HTMLElement {
       timetable_id: timetable.id,
     });
     this._timetableId = null;
-    this._draft = null;
-    this._dirty = false;
   }
-
-  // --- days off --------------------------------------------------------
 
   _renderDaysOffCard(kid) {
     const rows = kid.days_off.map((entry) =>
