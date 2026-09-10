@@ -126,17 +126,32 @@ The panel watches its own `matchMedia` rather than trusting only the `narrow`
 property, because that property tracks Home Assistant's breakpoint and not this
 panel's. Keep `NARROW_QUERY` and the media query in `STYLE` in step.
 
-### The upgrade path rarely fires, so the replica is what ships
+### Home Assistant's elements arrive late, so watch for them
 
-`window.loadCardHelpers` is the only public hook for pulling Home Assistant's
-lazily bundled elements in, and it is assigned inside the **dashboard** panel's
-chunk. Open `/school-timetable` directly and it does not exist, so
-`_setupMenu`'s call no-ops and every fallback renders. Treat the fallbacks as
-the primary path and keep them matching the real components: the dot-menu
-surface copies `ha-dropdown`'s `#menu` (raised card, 1px quiet border, 8px
-radius, 4px padding, `width: max-content`) and its rows copy
-`ha-dropdown-item`, including the `[selected]` state of medium weight, primary
-colour and `--ha-color-fill-primary-quiet-resting`.
+Verified against a running instance: by the time a panel has painted,
+`ha-dropdown`, `ha-dropdown-item`, `wa-divider`, `ha-button`, `ha-input`,
+`ha-select`, `ha-checkbox`, `ha-list` and the icon elements **are** defined.
+They are simply not there yet at first paint, and `window.loadCardHelpers` is
+useless here because it is assigned inside the dashboard panel's chunk.
+
+So `_watchHaElements` registers `customElements.whenDefined` for every name in
+`HA_ELEMENTS`, refreshes the flags when one lands and repaints once. Never
+sample availability with a timeout: that is what left the panel rendering its
+own controls forever. The fallbacks still matter for the first frames, so keep
+them matching the real components.
+
+`ha-date-input` and `ha-time-input` are the exception: nothing else on a panel
+page pulls their chunk, so they stay undefined and dialogs keep native date and
+time inputs, which follow the browser's locale rather than `hass.locale`.
+
+Slotted SVG icons need `width`/`height` **attributes**, not only CSS: inside
+`ha-dropdown-item`'s icon slot there is nothing to give them an intrinsic size
+and they collapse to nothing.
+
+To check any of this, log in to the dev instance over HTTP
+(`/auth/login_flow` → `/auth/token`), write the tokens into
+`localStorage.hassTokens`, and drive the real app with puppeteer. That is the
+only way to see what a panel actually gets.
 
 The overflow menu tries for the real thing: `_setupMenu` installs the panel's
 own menu first, then calls `window.loadCardHelpers()` and, if

@@ -9,8 +9,20 @@
 // module URL is the only cache-buster.
 const PANEL_VERSION = "1.0.0";
 
-// How long to wait for Home Assistant's menu elements before keeping our own.
-const MENU_UPGRADE_TIMEOUT = 2000;
+// Home Assistant's elements are defined as its chunks arrive, which happens
+// after a panel's first paint. So the panel renders its own controls, waits on
+// each name, and swaps in the real element the moment it exists.
+const HA_ELEMENTS = [
+  "ha-dropdown",
+  "ha-dropdown-item",
+  "wa-divider",
+  "ha-button",
+  "ha-input",
+  "ha-select",
+  "ha-checkbox",
+  "ha-date-input",
+  "ha-time-input",
+];
 
 // Below this the pane gives way to a picker in the toolbar, the way the todo
 // panel drops its pane. Kept in step with the media query in STYLE.
@@ -267,6 +279,10 @@ function icon(name) {
   const ns = "http://www.w3.org/2000/svg";
   const svg = document.createElementNS(ns, "svg");
   svg.setAttribute("viewBox", "0 0 24 24");
+  // Sized on the element, not only in CSS: slotted into ha-dropdown-item there
+  // is nothing to give it an intrinsic size and it collapses.
+  svg.setAttribute("width", "24");
+  svg.setAttribute("height", "24");
   svg.setAttribute("focusable", "false");
   svg.setAttribute("aria-hidden", "true");
   const path = document.createElementNS(ns, "path");
@@ -1179,65 +1195,61 @@ class SchoolTimetablePanel extends HTMLElement {
       this._main,
       this._dialogs
     );
-    this._setupMenu();
+    this._installFallbackMenu();
+    this._watchHaElements();
   }
 
-  // The Home Assistant elements this panel would like to use all live in
-  // lazily loaded chunks. It starts with its own menu and its own inputs, asks
-  // loadCardHelpers to pull the chunks in, and upgrades whatever turned up.
-  // Everything works from the first paint either way.
-  async _setupMenu() {
-    this._installFallbackMenu();
-
-    if (!customElements.get("ha-dropdown-item") || !customElements.get("ha-input")) {
-      try {
-        await window.loadCardHelpers?.();
-      } catch (err) {
-        /* the fallbacks stay */
-      }
-      // loadCardHelpers registers its chunks synchronously, so by here the
-      // elements are usually in place. The race is only a safety net, and it
-      // settles on the first arrival rather than waiting for a straggler.
-      await Promise.race([
-        customElements.whenDefined("ha-dropdown-item"),
-        customElements.whenDefined("ha-date-input"),
-        customElements.whenDefined("ha-time-input"),
-        customElements.whenDefined("ha-input"),
-        customElements.whenDefined("ha-button"),
-        new Promise((resolve) => setTimeout(resolve, MENU_UPGRADE_TIMEOUT)),
-      ]);
+  // Every element is optional: the panel works with its own controls and gets
+  // better as Home Assistant's chunks land. Nothing here waits on a timeout,
+  // because there is no telling how late a chunk arrives.
+  _watchHaElements() {
+    this._readHaElements();
+    for (const name of HA_ELEMENTS) {
+      if (customElements.get(name)) continue;
+      customElements.whenDefined(name).then(() => {
+        if (!this.isConnected || !this._readHaElements()) return;
+        this._render();
+      });
     }
-    if (!this._menuHost.isConnected) return;
+  }
 
-    // ha-date-input and ha-time-input format by hass.locale. A native
-    // <input type="date"> follows the browser's locale instead, which Chrome
-    // will not let the lang attribute override, so a German Home Assistant on
-    // an English browser shows 08/10/2026 and AM/PM.
-    this._nativePickers =
-      !!customElements.get("ha-date-input") && !!customElements.get("ha-time-input");
-    this._haInputs = !!customElements.get("ha-input");
-    this._haSelect = !!customElements.get("ha-select");
-    this._haCheckbox = !!customElements.get("ha-checkbox");
-    this._haButton = !!customElements.get("ha-button");
+  // Returns whether anything changed, so a late arrival only costs one repaint.
+  _readHaElements() {
+    const has = (name) => Boolean(customElements.get(name));
+    const next = {
+      _nativeMenu: has("ha-dropdown") && has("ha-dropdown-item"),
+      _haButton: has("ha-button"),
+      _haInputs: has("ha-input"),
+      _haSelect: has("ha-select"),
+      _haCheckbox: has("ha-checkbox"),
+      _nativePickers: has("ha-date-input") && has("ha-time-input"),
+    };
+    const changed = Object.entries(next).some(([key, value]) => this[key] !== value);
+    Object.assign(this, next);
+    return changed;
+  }
 
-    if (!customElements.get("ha-dropdown-item")) {
-      if (this._nativePickers || this._haInputs) this._render();
+  // The trigger lives in the toolbar, so it is rebuilt rather than re-rendered.
+  _syncMenuHost() {
+    if (!this._menuHost) return;
+    if (!this._nativeMenu) {
+      if (!this._menuHost.firstElementChild) this._installFallbackMenu();
       return;
     }
-    this._nativeMenu = true;
-
-    const trigger = this._trigger();
-    trigger.setAttribute("slot", "trigger");
-    const dropdown = document.createElement("ha-dropdown");
-    dropdown.addEventListener("wa-select", (event) => {
-      const value = event.detail?.item?.value;
-      const entry = this._menuItems().find((item) => item.value === value);
-      if (entry) entry.run();
-    });
-    dropdown.appendChild(trigger);
-    this._dropdown = dropdown;
-    this._menuHost.replaceChildren(dropdown);
-    this._render();
+    if (!this._dropdown || !this._dropdown.isConnected) {
+      const trigger = this._trigger();
+      trigger.setAttribute("slot", "trigger");
+      const dropdown = document.createElement("ha-dropdown");
+      dropdown.addEventListener("wa-select", (event) => {
+        const value = event.detail?.item?.value;
+        const entry = this._menuItems().find((item) => item.value === value);
+        if (entry) entry.run();
+      });
+      dropdown.appendChild(trigger);
+      this._dropdown = dropdown;
+      this._menuHost.replaceChildren(dropdown);
+    }
+    this._updateMenu();
   }
 
   _trigger(className = "menu") {
@@ -1285,7 +1297,7 @@ class SchoolTimetablePanel extends HTMLElement {
   _updateMenu() {
     const items = this._menuItems();
     if (this._menuHost) this._menuHost.hidden = items.length === 0;
-    if (!this._dropdown) return;
+    if (!this._dropdown || !this._nativeMenu) return;
     this._dropdown.replaceChildren(
       this._dropdown.querySelector('[slot="trigger"]'),
       ...items.map((entry) => this._dropdownItem(entry))
@@ -1473,7 +1485,7 @@ class SchoolTimetablePanel extends HTMLElement {
       return;
     }
 
-    this._updateMenu();
+    this._syncMenuHost();
     const narrow = this._isNarrow();
     this._sidebarToggle.hidden = !narrow;
     this._titleHost.classList.toggle("with-icon", narrow);
