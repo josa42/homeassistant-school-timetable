@@ -90,6 +90,22 @@ stand-in, and `getBoundingClientRect()` on `.nav` and `.view` will tell you
 whether they reach the bottom of the viewport. jsdom cannot: it has no layout
 engine.
 
+### Matching the todo panel's pane
+
+The pane rows copy an activated mwc list item, which is what `ha-list` renders
+in the todo panel: full-bleed rows of at least 48px with 16px side padding, an
+icon 16px before the label, and, when current, `--primary-color` for both text
+and icon over `rgba(var(--rgb-primary-color), 0.12)`. The top bar holds the
+panel name over the pane and nothing else, because that panel puts the selected
+list's name on the card rather than in the bar. The kid's name is the timetable
+card's heading for the same reason.
+
+Icons are inline SVG rather than `ha-icon`: that element is defined in a lazily
+loaded chunk, and nothing else in a bare panel pulls it in, so it may never
+upgrade. The path data in `MDI` was copied out of the frontend bundle. Verify
+any new one the same way (`grep -rF "<path data>" hass_frontend/frontend_latest/`)
+instead of typing it from memory.
+
 ### The panel cannot rely on `ha-*` elements
 
 A custom panel is loaded before Home Assistant's lazily-bundled frontend

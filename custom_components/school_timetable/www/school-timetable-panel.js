@@ -15,7 +15,6 @@ const PANEL_VERSION = "1.0.0";
 // localize call stays in front of it in case that ever changes.
 const STRINGS = {
   en: {
-    "nav.kids": "Kids",
     "nav.closed": "Holidays",
     "nav.settings": "Settings",
     "settings.default_times": "Default lesson times",
@@ -39,7 +38,6 @@ const STRINGS = {
     "menu.title": "Actions",
     "kids.empty": "No kids yet. Add one to get started.",
     "kids.delete_confirm": "Delete {name} and their timetables? The calendar entity is removed too.",
-    "timetable.section": "Timetables",
     "timetable.add_title": "Add timetable",
     "timetable.edit_title": "Edit timetable",
     "timetable.delete_title": "Delete timetable",
@@ -109,7 +107,6 @@ const STRINGS = {
     "weekday.6": "Sun",
   },
   de: {
-    "nav.kids": "Kinder",
     "nav.closed": "Ferien",
     "nav.settings": "Einstellungen",
     "settings.default_times": "Standard-Stundenzeiten",
@@ -133,7 +130,6 @@ const STRINGS = {
     "menu.title": "Aktionen",
     "kids.empty": "Noch keine Kinder. Lege eines an, um zu starten.",
     "kids.delete_confirm": "{name} und alle Stundenpläne löschen? Der Kalender wird mit entfernt.",
-    "timetable.section": "Stundenpläne",
     "timetable.add_title": "Stundenplan hinzufügen",
     "timetable.edit_title": "Stundenplan bearbeiten",
     "timetable.delete_title": "Stundenplan löschen",
@@ -235,6 +231,31 @@ function _t(hass, key, params) {
   return raw.replace(/\{(\w+)\}/g, (_, name) =>
     params[name] != null ? String(params[name]) : ""
   );
+}
+
+// ha-icon is defined in a lazily loaded chunk that a panel cannot count on, so
+// the pane draws its own. Every path below is the Material Design Icons data
+// Home Assistant itself ships (mdiAccount, mdiPlus, mdiCalendarBlank, mdiCog).
+const MDI = {
+  account:
+    "M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z",
+  plus: "M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z",
+  calendar:
+    "M19,19H5V8H19M19,3H18V1H16V3H8V1H6V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5A2,2 0 0,0 19,3Z",
+  cog: "M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.21,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.21,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.67 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z",
+};
+
+function icon(name) {
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("focusable", "false");
+  svg.setAttribute("aria-hidden", "true");
+  const path = document.createElementNS(ns, "path");
+  path.setAttribute("d", MDI[name]);
+  path.setAttribute("fill", "currentColor");
+  svg.appendChild(path);
+  return svg;
 }
 
 function h(tag, props, ...children) {
@@ -383,7 +404,7 @@ const STYLE = `
     min-width: 0;
     padding: 0 8px 0 16px;
   }
-  .app-title, .view-title {
+  .app-title {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -413,37 +434,43 @@ const STYLE = `
     border-inline-end: 1px solid var(--divider-color, #e0e0e0);
     border-inline-start: initial;
   }
-  .nav-kids { flex: 1; overflow: auto; padding: 8px; display: flex; flex-direction: column; gap: 2px; }
-  .nav-bottom {
-    padding: 8px;
-    padding-bottom: 8px;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    border-top: 1px solid var(--divider-color, #e0e0e0);
-  }
-  .nav-label {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--secondary-text-color, #727272);
-    margin: 4px 12px 6px;
-  }
+  .nav-kids { flex: 1; overflow: auto; padding: 4px 0; }
+  .nav-bottom { padding: 4px 0 8px; border-top: 1px solid var(--divider-color, #e0e0e0); }
+  /* Rows follow an activated mwc list item: full bleed, 48px, and primary
+     colour over a 12% tint when current. */
   .nav-item {
-    text-align: left;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    width: 100%;
+    min-height: 48px;
+    padding: 0 16px;
+    box-sizing: border-box;
     border: 0;
+    border-radius: 0;
     background: none;
-    border-radius: 8px;
-    padding: 10px 12px;
+    color: var(--primary-text-color, #212121);
     font-size: 14px;
-    color: inherit;
+    text-align: start;
     flex: 0 0 auto;
   }
-  .nav-item:hover { background: var(--secondary-background-color, #e5e5e5); }
-  .nav-item[aria-current="page"] {
-    background: var(--primary-color, #03a9f4);
-    color: var(--text-primary-color, #fff);
+  .nav-item svg {
+    flex: 0 0 auto;
+    width: 24px;
+    height: 24px;
+    color: var(--secondary-text-color, #727272);
   }
+  .nav-item span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .nav-item:hover { background: rgba(var(--rgb-primary-text-color, 0, 0, 0), 0.04); }
+  .nav-item[aria-current="page"] {
+    color: var(--primary-color, #03a9f4);
+    background: rgba(var(--rgb-primary-color, 3, 169, 244), 0.12);
+  }
+  .nav-item[aria-current="page"] svg { color: var(--primary-color, #03a9f4); }
   .view { flex: 1; min-width: 0; height: 100%; overflow: auto; }
   .view-inner { max-width: 1100px; margin: 0 auto; padding: var(--st-gap); }
   @media (max-width: 700px) {
@@ -457,7 +484,6 @@ const STYLE = `
       border-bottom: 1px solid var(--divider-color, #e0e0e0);
     }
     .nav-kids, .nav-bottom { flex-direction: row; overflow-x: auto; border-top: 0; }
-    .nav-label { display: none; }
     .view { height: auto; overflow: visible; }
   }
   .card {
@@ -857,14 +883,13 @@ class SchoolTimetablePanel extends HTMLElement {
     overflow.innerHTML = SVG_OVERFLOW;
     this._main = h("div", { class: "content" });
     this._dialogs = h("div");
-    this._viewTitle = h("div", { class: "grow view-title" });
     this.shadowRoot.replaceChildren(
       h("style", { text: STYLE }),
       h(
         "div",
         { class: "toolbar" },
         h("div", { class: "toolbar-pane" }, menu, h("div", { class: "app-title", text: this._title() })),
-        h("div", { class: "toolbar-main" }, this._viewTitle, overflow)
+        h("div", { class: "toolbar-main" }, h("div", { class: "grow" }), overflow)
       ),
       this._main,
       this._dialogs
@@ -962,7 +987,6 @@ class SchoolTimetablePanel extends HTMLElement {
       return;
     }
 
-    this._viewTitle.textContent = this._viewName();
     this._main.replaceChildren(
       h(
         "div",
@@ -984,13 +1008,6 @@ class SchoolTimetablePanel extends HTMLElement {
     );
   }
 
-  _viewName() {
-    if (this._view === "closed") return _t(this._hass, "nav.closed");
-    if (this._view === "settings") return _t(this._hass, "nav.settings");
-    const kid = this._kid();
-    return kid ? kid.name : "";
-  }
-
   _renderView() {
     if (this._view === "closed") return this._renderClosedView();
     if (this._view === "settings") return this._renderSettingsView();
@@ -1009,13 +1026,17 @@ class SchoolTimetablePanel extends HTMLElement {
   }
 
   _renderNav() {
-    const item = (label, active, onClick) =>
-      h("button", {
-        class: "nav-item",
-        "aria-current": active ? "page" : null,
-        text: label,
-        onClick,
-      });
+    const item = (mdi, label, active, onClick) =>
+      h(
+        "button",
+        {
+          class: "nav-item",
+          "aria-current": active ? "page" : null,
+          onClick,
+        },
+        icon(mdi),
+        h("span", { text: label })
+      );
 
     return h(
       "div",
@@ -1023,9 +1044,8 @@ class SchoolTimetablePanel extends HTMLElement {
       h(
         "div",
         { class: "nav-kids" },
-        h("p", { class: "nav-label", text: _t(this._hass, "nav.kids") }),
         ...this._data.kids.map((kid) =>
-          item(kid.name, this._view === "kid" && this._kidId === kid.id, () =>
+          item("account", kid.name, this._view === "kid" && this._kidId === kid.id, () =>
             this._show("kid", kid.id)
           )
         )
@@ -1033,9 +1053,11 @@ class SchoolTimetablePanel extends HTMLElement {
       h(
         "div",
         { class: "nav-bottom" },
-        item(`+ ${_t(this._hass, "kids.add")}`, false, () => this._addKid()),
-        item(_t(this._hass, "nav.closed"), this._view === "closed", () => this._show("closed")),
-        item(_t(this._hass, "nav.settings"), this._view === "settings", () =>
+        item("plus", _t(this._hass, "kids.add"), false, () => this._addKid()),
+        item("calendar", _t(this._hass, "nav.closed"), this._view === "closed", () =>
+          this._show("closed")
+        ),
+        item("cog", _t(this._hass, "nav.settings"), this._view === "settings", () =>
           this._show("settings")
         )
       )
@@ -1181,7 +1203,7 @@ class SchoolTimetablePanel extends HTMLElement {
     const head = h(
       "div",
       { class: "row spread" },
-      h("h2", { text: _t(this._hass, "timetable.section") }),
+      h("h2", { text: kid.name }),
       kid.timetables.length ? select : null
     );
 
