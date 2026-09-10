@@ -416,7 +416,7 @@ const STYLE = `
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 0 4px 0 12px;
+    padding: 0 4px 0 16px;
     box-sizing: border-box;
     flex: 0 0 var(--sidepane-width, 250px);
     width: var(--sidepane-width, 250px);
@@ -1098,13 +1098,16 @@ class SchoolTimetablePanel extends HTMLElement {
 
   _ensureShell() {
     if (this._main) return;
-    const menu = h("button", {
+    // Only shown on a narrow screen, where Home Assistant hides its sidebar and
+    // this is the only way back to it. On a wide screen that sidebar is already
+    // on display and the button would just collapse it.
+    this._sidebarToggle = h("button", {
       class: "menu",
       title: "Menu",
       onClick: () =>
         this.dispatchEvent(new CustomEvent("hass-toggle-menu", { bubbles: true, composed: true })),
     });
-    menu.innerHTML = SVG_MENU;
+    this._sidebarToggle.innerHTML = SVG_MENU;
     this._menuHost = h("div", { class: "menu-host" });
     this._main = h("div", { class: "content" });
     this._dialogs = h("div");
@@ -1113,7 +1116,12 @@ class SchoolTimetablePanel extends HTMLElement {
       h(
         "div",
         { class: "toolbar" },
-        h("div", { class: "toolbar-pane" }, menu, (this._titleHost = h("div", { class: "title-host" }))),
+        h(
+          "div",
+          { class: "toolbar-pane" },
+          this._sidebarToggle,
+          (this._titleHost = h("div", { class: "title-host" }))
+        ),
         h("div", { class: "toolbar-main" }, h("div", { class: "grow" }), this._menuHost)
       ),
       this._main,
@@ -1400,6 +1408,7 @@ class SchoolTimetablePanel extends HTMLElement {
 
     this._updateMenu();
     const narrow = this._isNarrow();
+    this._sidebarToggle.hidden = !narrow;
     this._titleHost.replaceChildren(
       narrow ? this._renderViewPicker() : h("div", { class: "app-title", text: this._title() })
     );

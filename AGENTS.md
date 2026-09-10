@@ -100,6 +100,11 @@ panel name over the pane and nothing else, because that panel puts the selected
 list's name on the card rather than in the bar. The kid's name is the timetable
 card's heading for the same reason.
 
+The sidebar toggle in the top left only appears below `NARROW_QUERY`. On a wide
+screen Home Assistant's sidebar is already on display, so the button would only
+collapse it; on a narrow one that sidebar is hidden and this is the only way
+back to it.
+
 Below `NARROW_QUERY` the pane is dropped and its contents move into a picker in
 the toolbar, the way the todo panel swaps its title for a dropdown of lists when
 narrow. Both come from `_navItems()`, so a new nav entry appears in both places.
