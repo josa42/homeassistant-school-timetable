@@ -109,6 +109,16 @@ async def test_a_missing_span_means_one_period(store: SchoolTimetableStore) -> N
     assert {lesson.span for lesson in saved.lessons} == {1}
 
 
+async def test_the_weekend_flag_round_trips(store: SchoolTimetableStore) -> None:
+    raw = sample_data()["kids"][0]["timetables"][0]
+    raw["show_weekend"] = True
+
+    saved = await store.async_save_timetable(KID_ID, raw)
+
+    assert saved.show_weekend is True
+    assert store.data.to_dict()["kids"][0]["timetables"][0]["show_weekend"] is True
+
+
 async def test_days_off_are_replaced_and_sorted(store: SchoolTimetableStore) -> None:
     await store.async_set_days_off(
         KID_ID,

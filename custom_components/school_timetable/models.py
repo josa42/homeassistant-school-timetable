@@ -157,6 +157,8 @@ class Timetable:
     valid_to: date | None = None
     periods: list[Period] = field(default_factory=list)
     lessons: list[Lesson] = field(default_factory=list)
+    # Whether the week shown for this timetable includes Saturday and Sunday.
+    show_weekend: bool = False
 
     def covers(self, day: date) -> bool:
         """Return True when this timetable is in force on `day`."""
@@ -175,6 +177,7 @@ class Timetable:
             "valid_to": self.valid_to.isoformat() if self.valid_to else None,
             "periods": [period.to_dict() for period in self.periods],
             "lessons": [lesson.to_dict() for lesson in self.lessons],
+            "show_weekend": self.show_weekend,
         }
 
     @classmethod
@@ -194,6 +197,7 @@ class Timetable:
             valid_to=parse_date(data.get("valid_to")),
             periods=sorted(periods, key=lambda p: p.period),
             lessons=lessons,
+            show_weekend=bool(data.get("show_weekend")),
         )
 
 

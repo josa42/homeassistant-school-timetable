@@ -57,6 +57,7 @@ _TIMETABLE_SCHEMA = vol.Schema(
         # No default: an absent key means "seed from the settings defaults".
         vol.Optional("periods"): [_PERIOD_SCHEMA],
         vol.Optional("lessons", default=list): [_LESSON_SCHEMA],
+        vol.Optional("show_weekend", default=False): bool,
     }
 )
 
