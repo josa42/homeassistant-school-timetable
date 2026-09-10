@@ -1368,6 +1368,7 @@ class SchoolTimetablePanel extends HTMLElement {
           current = value;
         },
       });
+      if (field.disabled) element.disabled = true;
       return {
         element,
         read: () => String(current ?? element.value ?? ""),
@@ -2441,17 +2442,14 @@ class SchoolTimetablePanel extends HTMLElement {
           value: existing ? existing.subject : "",
           required: !existing,
         },
-        ...(spans.length > 1
-          ? [
-              {
-                key: "span",
-                label: _t(this._hass, "timetable.duration"),
-                type: "select",
-                options: spans,
-                value: String(existing ? Math.min(lessonSpan(existing), reach) : 1),
-              },
-            ]
-          : []),
+        {
+          key: "span",
+          label: _t(this._hass, "timetable.duration"),
+          type: "select",
+          options: spans,
+          value: String(existing ? Math.min(lessonSpan(existing), reach) : 1),
+          disabled: spans.length < 2,
+        },
       ],
       deletable: Boolean(existing),
     });
