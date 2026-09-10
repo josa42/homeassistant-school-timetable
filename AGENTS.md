@@ -128,6 +128,22 @@ upgrade. The path data in `MDI` was copied out of the frontend bundle. Verify
 any new one the same way (`grep -rF "<path data>" hass_frontend/frontend_latest/`)
 instead of typing it from memory.
 
+### Using Home Assistant's controls
+
+Form controls go through `_textField`, `_checkbox`, `_select` and `_dialogField`,
+which build `ha-input`, `ha-checkbox`, `ha-select`, `ha-date-input` and
+`ha-time-input` when those are defined and plain elements when they are not.
+Never reach for `document.createElement("ha-…")` directly in a view; add it to a
+factory so the fallback stays in step.
+
+Two things the frontend renamed underneath: there is no `ha-textfield` any more
+(it is `ha-input`, wrapping `wa-input`), and `ha-select` takes an `options`
+array rather than slotted children. Check the bundle before assuming an element
+exists.
+
+Read values off the element (`element.value`), not off `event.target`: these are
+shadow-DOM components and the event's target is the inner control.
+
 ### The panel cannot rely on `ha-*` elements
 
 A custom panel is loaded before Home Assistant's lazily-bundled frontend

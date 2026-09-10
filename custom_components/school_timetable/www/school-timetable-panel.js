@@ -768,6 +768,9 @@ class SchoolTimetablePanel extends HTMLElement {
     this._kidTab = "timetable";
     this._nativeMenu = false;
     this._nativePickers = false;
+    this._haInputs = false;
+    this._haSelect = false;
+    this._haCheckbox = false;
     this._status = null;
     this._subscribing = false;
     this._unsub = null;
@@ -920,6 +923,64 @@ class SchoolTimetablePanel extends HTMLElement {
     });
   }
 
+  // Text, url and number fields. ha-input carries its own label, so the caller
+  // does not add one when `labelled` comes back true.
+  _textField({ type = "text", value = "", placeholder = "", label = "", onInput, onChange }) {
+    if (this._haInputs) {
+      const element = document.createElement("ha-input");
+      element.type = type;
+      element.value = value;
+      if (label) element.label = label;
+      if (placeholder) element.placeholder = placeholder;
+      const read = () => String(element.value ?? "").trim();
+      if (onInput) element.addEventListener("input", () => onInput(String(element.value ?? "")));
+      if (onChange) element.addEventListener("change", () => onChange(read()));
+      return { element, read, focus: () => element.focus?.(), labelled: Boolean(label) };
+    }
+    const element = h("input", { type, value, placeholder });
+    const read = () => element.value.trim();
+    if (onInput) element.addEventListener("input", () => onInput(element.value));
+    if (onChange) element.addEventListener("change", () => onChange(read()));
+    return { element, read, focus: () => element.focus(), labelled: false };
+  }
+
+  _checkbox({ checked, label, onChange, bare = false }) {
+    let element;
+    if (this._haCheckbox) {
+      element = document.createElement("ha-checkbox");
+      element.checked = checked;
+      element.addEventListener("change", () => onChange(Boolean(element.checked)));
+    } else {
+      element = h("input", {
+        type: "checkbox",
+        checked,
+        onChange: (event) => onChange(event.target.checked),
+      });
+    }
+    if (!bare) return h("label", { class: "inline" }, element, label);
+    element.setAttribute("aria-label", label);
+    return element;
+  }
+
+  _select({ value, options, onChange }) {
+    if (this._haSelect) {
+      const element = document.createElement("ha-select");
+      element.options = options;
+      element.value = value;
+      const handler = () => onChange(String(element.value ?? ""));
+      element.addEventListener("value-changed", handler);
+      element.addEventListener("change", handler);
+      return element;
+    }
+    return h(
+      "select",
+      { onChange: (event) => onChange(event.target.value) },
+      ...options.map((option) =>
+        h("option", { value: option.value, selected: option.value === value, text: option.label })
+      )
+    );
+  }
+
   // A dialog field is Home Assistant's own date or time input when that is
   // available, because those follow hass.locale. Otherwise a native input,
   // which follows the browser.
@@ -931,6 +992,7 @@ class SchoolTimetablePanel extends HTMLElement {
       );
       element.locale = this._hass.locale;
       element.required = Boolean(field.required);
+      if (field.label) element.label = field.label;
       // ha-time-input speaks HH:MM:SS; everything stored here is HH:MM.
       element.value = field.value
         ? type === "time"
@@ -944,18 +1006,15 @@ class SchoolTimetablePanel extends HTMLElement {
           return type === "time" ? value.slice(0, 5) : value;
         },
         focus: () => element.focus?.(),
+        labelled: Boolean(field.label),
       };
     }
-    const element = h("input", {
+    return this._textField({
       type,
       value: field.value || "",
       placeholder: field.placeholder || "",
+      label: field.label,
     });
-    return {
-      element,
-      read: () => element.value.trim(),
-      focus: () => element.focus(),
-    };
   }
 
   _formDialog({ title, description, fields, submitLabel, validate, deletable }) {
@@ -986,7 +1045,9 @@ class SchoolTimetablePanel extends HTMLElement {
       const body = fields.map((field) => {
         const control = this._dialogField(field);
         inputs[field.key] = control;
-        return h("label", { class: "field" }, field.label, control.element);
+        return control.labelled
+          ? control.element
+          : h("label", { class: "field" }, field.label, control.element);
       });
       const dialog = h(
         "div",
@@ -1068,7 +1129,7 @@ class SchoolTimetablePanel extends HTMLElement {
   async _setupMenu() {
     this._installFallbackMenu();
 
-    if (!customElements.get("ha-dropdown-item") || !customElements.get("ha-date-input")) {
+    if (!customElements.get("ha-dropdown-item") || !customElements.get("ha-input")) {
       try {
         await window.loadCardHelpers?.();
       } catch (err) {
@@ -1081,6 +1142,7 @@ class SchoolTimetablePanel extends HTMLElement {
         customElements.whenDefined("ha-dropdown-item"),
         customElements.whenDefined("ha-date-input"),
         customElements.whenDefined("ha-time-input"),
+        customElements.whenDefined("ha-input"),
         new Promise((resolve) => setTimeout(resolve, MENU_UPGRADE_TIMEOUT)),
       ]);
     }
@@ -1092,9 +1154,12 @@ class SchoolTimetablePanel extends HTMLElement {
     // an English browser shows 08/10/2026 and AM/PM.
     this._nativePickers =
       !!customElements.get("ha-date-input") && !!customElements.get("ha-time-input");
+    this._haInputs = !!customElements.get("ha-input");
+    this._haSelect = !!customElements.get("ha-select");
+    this._haCheckbox = !!customElements.get("ha-checkbox");
 
     if (!customElements.get("ha-dropdown-item")) {
-      if (this._nativePickers) this._render();
+      if (this._nativePickers || this._haInputs) this._render();
       return;
     }
     this._nativeMenu = true;
@@ -1641,33 +1706,28 @@ class SchoolTimetablePanel extends HTMLElement {
 
   _renderTimetableCard(kid) {
     const timetable = this._timetable();
-    const select = h(
-      "select",
-      {
-        onChange: (event) => {
-          this._timetableId = event.target.value;
-          this._dirty = false;
-          this._draft = null;
-          this._render();
-        },
+    const select = this._select({
+      value: timetable ? timetable.id : "",
+      options: kid.timetables.map((entry) => ({
+        value: entry.id,
+        label: [
+          entry.label,
+          `${fmtDate(this._hass, entry.valid_from)} – ${
+            entry.valid_to
+              ? fmtDate(this._hass, entry.valid_to)
+              : _t(this._hass, "timetable.open_ended")
+          }`,
+        ]
+          .filter(Boolean)
+          .join(" · "),
+      })),
+      onChange: (value) => {
+        this._timetableId = value;
+        this._dirty = false;
+        this._draft = null;
+        this._render();
       },
-      ...kid.timetables.map((entry) =>
-        h("option", {
-          value: entry.id,
-          selected: timetable && entry.id === timetable.id,
-          text: [
-            entry.label,
-            `${fmtDate(this._hass, entry.valid_from)} – ${
-              entry.valid_to
-                ? fmtDate(this._hass, entry.valid_to)
-                : _t(this._hass, "timetable.open_ended")
-            }`,
-          ]
-            .filter(Boolean)
-            .join(" · "),
-        })
-      )
-    );
+    });
 
     const head = h(
       "div",
@@ -1767,16 +1827,14 @@ class SchoolTimetablePanel extends HTMLElement {
                     return h(
                       "td",
                       {},
-                      h("input", {
-                        type: "text",
+                      this._textField({
                         value: cell ? cell.subject : "",
-                        onInput: (event) => {
-                          const value = event.target.value;
+                        onInput: (value) => {
                           if (!value.trim()) delete draft.cells[key];
                           else draft.cells[key] = { subject: value, week: cell ? cell.week : "every" };
                           this._markDirty();
                         },
-                      })
+                      }).element
                     );
                   })
                 )
@@ -1796,19 +1854,14 @@ class SchoolTimetablePanel extends HTMLElement {
         "div",
         { class: "row spread" },
         h("h3", { text: _t(this._hass, "timetable.lessons") }),
-        h(
-          "label",
-          { class: "inline" },
-          h("input", {
-            type: "checkbox",
-            checked: this._showWeekend,
-            onChange: (event) => {
-              this._showWeekend = event.target.checked;
-              this._render();
-            },
-          }),
-          _t(this._hass, "timetable.show_weekend")
-        )
+        this._checkbox({
+          checked: this._showWeekend,
+          label: _t(this._hass, "timetable.show_weekend"),
+          onChange: (checked) => {
+            this._showWeekend = checked;
+            this._render();
+          },
+        })
       ),
       grid,
       h(
@@ -2172,11 +2225,11 @@ class SchoolTimetablePanel extends HTMLElement {
         h(
           "td",
           {},
-          h("input", {
-            type: "checkbox",
+          this._checkbox({
             checked: this._selected.has(entry.id),
-            "aria-label": entry.name,
-            onChange: (event) => toggle(entry.id, event.target.checked),
+            label: entry.name,
+            bare: true,
+            onChange: (checked) => toggle(entry.id, checked),
           })
         ),
         h("td", { class: "grow", text: entry.name }),
@@ -2218,14 +2271,12 @@ class SchoolTimetablePanel extends HTMLElement {
                 h(
                   "th",
                   {},
-                  h("input", {
-                    type: "checkbox",
+                  this._checkbox({
                     checked: allSelected,
-                    "aria-label": _t(this._hass, "closed.select_all"),
-                    onChange: (event) => {
-                      this._selected = new Set(
-                        event.target.checked ? entries.map((entry) => entry.id) : []
-                      );
+                    label: _t(this._hass, "closed.select_all"),
+                    bare: true,
+                    onChange: (checked) => {
+                      this._selected = new Set(checked ? entries.map((entry) => entry.id) : []);
                       this._render();
                     },
                   })
@@ -2285,13 +2336,13 @@ class SchoolTimetablePanel extends HTMLElement {
     const close = () => backdrop.remove();
     const status = h("p", { class: "status error" });
     const file = h("input", { type: "file", accept: ".ics,text/calendar" });
-    const url = h("input", {
+    const url = this._textField({
       type: "url",
       placeholder: _t(this._hass, "import.url_placeholder"),
     });
 
     const submit = async () => {
-      const address = url.value.trim();
+      const address = url.read();
       const chosen = file.files && file.files[0];
       if (!address && !chosen) {
         status.textContent = _t(this._hass, "import.nothing_chosen");
@@ -2308,7 +2359,7 @@ class SchoolTimetablePanel extends HTMLElement {
       h("h2", { text: _t(this._hass, "import.section") }),
       h("p", { class: "hint", text: _t(this._hass, "import.hint") }),
       h("label", { class: "field" }, _t(this._hass, "import.file"), file),
-      h("label", { class: "field" }, _t(this._hass, "import.url"), url),
+      h("label", { class: "field" }, _t(this._hass, "import.url"), url.element),
       status,
       h(
         "div",
@@ -2407,6 +2458,9 @@ class SchoolTimetablePanel extends HTMLElement {
     this._kidTab = "timetable";
     this._nativeMenu = false;
     this._nativePickers = false;
+    this._haInputs = false;
+    this._haSelect = false;
+    this._haCheckbox = false;
   }
 
   async _replaceInSelected() {
