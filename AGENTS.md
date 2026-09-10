@@ -164,11 +164,19 @@ cannot repaint on all of them without throwing away whatever is being typed. The
 `hass` setter compares `localeSignature` and repaints only when the language or
 a format actually changed.
 
-Two surfaces do not follow those settings and cannot: the event description
-built in `schedule.py` stays on 24-hour `HH:MM`, because the server cannot see a
-per-user frontend setting, and the native `<input type="date">` / `type="time"`
-in dialogs follow the browser's locale. Replacing those would mean adopting
-`ha-date-input` and `ha-time-input`, which are lazily loaded like the rest.
+Dialog date and time fields go through `ha-date-input` and `ha-time-input` when
+those turn up, because they format by `hass.locale`. A native
+`<input type="date">` formats by the browser's locale instead, and Chrome will
+not let the `lang` attribute override that: an `<html lang="en-US">` document in
+a German browser still renders `10.08.2026`. So a German Home Assistant on an
+English browser showed `08/10/2026` and AM/PM until this changed. The native
+inputs remain as the fallback. `ha-time-input` speaks `HH:MM:SS` while
+everything stored here is `HH:MM`, so `_dialogField` pads on the way in and
+trims on the way out.
+
+The one surface that cannot follow the settings is the event description built
+in `schedule.py`: it stays on 24-hour `HH:MM`, because the server cannot see a
+per-user frontend setting.
 
 The timetable editor is the one place with local state. It keeps a draft and an
 explicit Save button, so typing in the grid does not trigger a re-render and

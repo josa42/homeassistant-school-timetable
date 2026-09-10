@@ -767,6 +767,7 @@ class SchoolTimetablePanel extends HTMLElement {
     this._selected = new Set();
     this._kidTab = "timetable";
     this._nativeMenu = false;
+    this._nativePickers = false;
     this._status = null;
     this._subscribing = false;
     this._unsub = null;
@@ -919,6 +920,44 @@ class SchoolTimetablePanel extends HTMLElement {
     });
   }
 
+  // A dialog field is Home Assistant's own date or time input when that is
+  // available, because those follow hass.locale. Otherwise a native input,
+  // which follows the browser.
+  _dialogField(field) {
+    const type = field.type || "text";
+    if (this._nativePickers && (type === "date" || type === "time")) {
+      const element = document.createElement(
+        type === "date" ? "ha-date-input" : "ha-time-input"
+      );
+      element.locale = this._hass.locale;
+      element.required = Boolean(field.required);
+      // ha-time-input speaks HH:MM:SS; everything stored here is HH:MM.
+      element.value = field.value
+        ? type === "time"
+          ? `${field.value}:00`.slice(0, 8)
+          : field.value
+        : undefined;
+      return {
+        element,
+        read: () => {
+          const value = String(element.value || "").trim();
+          return type === "time" ? value.slice(0, 5) : value;
+        },
+        focus: () => element.focus?.(),
+      };
+    }
+    const element = h("input", {
+      type,
+      value: field.value || "",
+      placeholder: field.placeholder || "",
+    });
+    return {
+      element,
+      read: () => element.value.trim(),
+      focus: () => element.focus(),
+    };
+  }
+
   _formDialog({ title, description, fields, submitLabel, validate, deletable }) {
     return new Promise((resolve) => {
       const inputs = {};
@@ -930,7 +969,7 @@ class SchoolTimetablePanel extends HTMLElement {
       const submit = () => {
         const values = {};
         for (const field of fields) {
-          const value = inputs[field.key].value.trim();
+          const value = inputs[field.key].read();
           if (field.required && !value) {
             inputs[field.key].focus();
             return;
@@ -945,13 +984,9 @@ class SchoolTimetablePanel extends HTMLElement {
         close(values);
       };
       const body = fields.map((field) => {
-        const input = h("input", {
-          type: field.type || "text",
-          value: field.value || "",
-          placeholder: field.placeholder || "",
-        });
-        inputs[field.key] = input;
-        return h("label", { class: "field" }, field.label, input);
+        const control = this._dialogField(field);
+        inputs[field.key] = control;
+        return h("label", { class: "field" }, field.label, control.element);
       });
       const dialog = h(
         "div",
@@ -994,8 +1029,7 @@ class SchoolTimetablePanel extends HTMLElement {
         dialog
       );
       this._dialogs.append(backdrop);
-      const firstInput = fields.length ? inputs[fields[0].key] : null;
-      if (firstInput) firstInput.focus();
+      if (fields.length) inputs[fields[0].key].focus();
     });
   }
 
@@ -1027,25 +1061,42 @@ class SchoolTimetablePanel extends HTMLElement {
     this._setupMenu();
   }
 
-  // Home Assistant's menu elements live in lazily loaded chunks, so the panel
-  // starts with a menu of its own and swaps in ha-dropdown once that chunk is
-  // there. loadCardHelpers is what pulls it in. Either way the actions work
-  // from the first paint.
+  // The Home Assistant elements this panel would like to use all live in
+  // lazily loaded chunks. It starts with its own menu and its own inputs, asks
+  // loadCardHelpers to pull the chunks in, and upgrades whatever turned up.
+  // Everything works from the first paint either way.
   async _setupMenu() {
     this._installFallbackMenu();
 
-    if (!customElements.get("ha-dropdown-item")) {
+    if (!customElements.get("ha-dropdown-item") || !customElements.get("ha-date-input")) {
       try {
         await window.loadCardHelpers?.();
       } catch (err) {
-        /* the fallback stays */
+        /* the fallbacks stay */
       }
+      // loadCardHelpers registers its chunks synchronously, so by here the
+      // elements are usually in place. The race is only a safety net, and it
+      // settles on the first arrival rather than waiting for a straggler.
       await Promise.race([
         customElements.whenDefined("ha-dropdown-item"),
+        customElements.whenDefined("ha-date-input"),
+        customElements.whenDefined("ha-time-input"),
         new Promise((resolve) => setTimeout(resolve, MENU_UPGRADE_TIMEOUT)),
       ]);
     }
-    if (!customElements.get("ha-dropdown-item") || !this._menuHost.isConnected) return;
+    if (!this._menuHost.isConnected) return;
+
+    // ha-date-input and ha-time-input format by hass.locale. A native
+    // <input type="date"> follows the browser's locale instead, which Chrome
+    // will not let the lang attribute override, so a German Home Assistant on
+    // an English browser shows 08/10/2026 and AM/PM.
+    this._nativePickers =
+      !!customElements.get("ha-date-input") && !!customElements.get("ha-time-input");
+
+    if (!customElements.get("ha-dropdown-item")) {
+      if (this._nativePickers) this._render();
+      return;
+    }
     this._nativeMenu = true;
 
     const trigger = this._trigger();
@@ -2355,6 +2406,7 @@ class SchoolTimetablePanel extends HTMLElement {
     this._selected = new Set();
     this._kidTab = "timetable";
     this._nativeMenu = false;
+    this._nativePickers = false;
   }
 
   async _replaceInSelected() {
