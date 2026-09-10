@@ -42,14 +42,15 @@ const STRINGS = {
     "timetable.open_ended": "open-ended",
     "timetable.delete_confirm": "Delete the timetable “{label}”?",
     "timetable.unsaved": "Unsaved changes",
-    "timetable.periods": "Bell schedule",
     "timetable.period": "Period",
+    "timetable.edit_period": "Edit times",
     "timetable.start": "Start",
     "timetable.end": "End",
     "timetable.add_period": "Add period",
-    "timetable.remove_period": "Remove period",
+    "timetable.overlap": "This overlaps another period.",
+    "timetable.end_before_start": "The end must be after the start.",
     "timetable.lessons": "Lessons",
-    "timetable.no_periods": "Add a period to the bell schedule first.",
+    "timetable.no_periods": "No periods yet. Add one to start filling in lessons.",
     "timetable.show_weekend": "Show weekend",
     "days_off.section": "Days off",
     "days_off.hint": "Dates this kid alone has no school: sick days, a Pädagogischer Tag at their school.",
@@ -114,14 +115,15 @@ const STRINGS = {
     "timetable.open_ended": "unbefristet",
     "timetable.delete_confirm": "Stundenplan „{label}“ löschen?",
     "timetable.unsaved": "Nicht gespeicherte Änderungen",
-    "timetable.periods": "Stundenzeiten",
     "timetable.period": "Stunde",
+    "timetable.edit_period": "Zeiten bearbeiten",
     "timetable.start": "Beginn",
     "timetable.end": "Ende",
     "timetable.add_period": "Stunde hinzufügen",
-    "timetable.remove_period": "Stunde entfernen",
+    "timetable.overlap": "Überschneidet sich mit einer anderen Stunde.",
+    "timetable.end_before_start": "Das Ende muss nach dem Beginn liegen.",
     "timetable.lessons": "Fächer",
-    "timetable.no_periods": "Lege zuerst eine Stunde in den Stundenzeiten an.",
+    "timetable.no_periods": "Noch keine Stunden. Füge eine hinzu, um Fächer einzutragen.",
     "timetable.show_weekend": "Wochenende anzeigen",
     "days_off.section": "Freie Tage",
     "days_off.hint": "Tage, an denen nur dieses Kind schulfrei hat: krank, Pädagogischer Tag der eigenen Schule.",
@@ -322,8 +324,20 @@ const STYLE = `
   .scroll { overflow-x: auto; }
   .grid input { width: 100%; }
   .grid th { min-width: 110px; }
-  .grid td.period-head { white-space: nowrap; font-size: 12px;
-    color: var(--secondary-text-color, #727272); }
+  .grid td.period-head { white-space: nowrap; }
+  button.link {
+    border: 0;
+    background: none;
+    padding: 6px 4px;
+    font-size: 13px;
+    color: var(--secondary-text-color, #727272);
+    cursor: pointer;
+    border-radius: 6px;
+  }
+  button.link:hover {
+    background: var(--secondary-background-color, #e5e5e5);
+    color: var(--primary-text-color, #212121);
+  }
   .badge {
     font-size: 11px;
     border-radius: 999px;
@@ -504,9 +518,10 @@ class SchoolTimetablePanel extends HTMLElement {
     });
   }
 
-  _formDialog({ title, description, fields, submitLabel }) {
+  _formDialog({ title, description, fields, submitLabel, validate, deletable }) {
     return new Promise((resolve) => {
       const inputs = {};
+      const error = h("p", { class: "status error" });
       const close = (result) => {
         backdrop.remove();
         resolve(result);
@@ -520,6 +535,11 @@ class SchoolTimetablePanel extends HTMLElement {
             return;
           }
           values[field.key] = value;
+        }
+        const message = validate ? validate(values) : null;
+        if (message) {
+          error.textContent = message;
+          return;
         }
         close(values);
       };
@@ -538,9 +558,18 @@ class SchoolTimetablePanel extends HTMLElement {
         h("h2", { text: title }),
         description ? h("p", { class: "hint", text: description }) : null,
         ...body,
+        error,
         h(
           "div",
           { class: "actions" },
+          deletable
+            ? h("button", {
+                class: "danger",
+                style: "margin-right: auto",
+                text: _t(this._hass, "common.delete"),
+                onClick: () => close({ __deleted: true }),
+              })
+            : null,
           h("button", { text: _t(this._hass, "common.cancel"), onClick: () => close(null) }),
           h("button", {
             class: "primary",
@@ -843,84 +872,11 @@ class SchoolTimetablePanel extends HTMLElement {
       })
     );
 
-    const periodRows = draft.periods.map((period, index) =>
-      h(
-        "tr",
-        {},
-        h(
-          "td",
-          {},
-          h("input", {
-            type: "number",
-            min: "1",
-            value: String(period.period),
-            style: "width: 70px",
-            onInput: (event) => {
-              period.period = Number(event.target.value);
-              this._markDirty();
-            },
-          })
-        ),
-        h(
-          "td",
-          {},
-          h("input", {
-            type: "time",
-            value: period.start,
-            onInput: (event) => {
-              period.start = event.target.value;
-              this._markDirty();
-            },
-          })
-        ),
-        h(
-          "td",
-          {},
-          h("input", {
-            type: "time",
-            value: period.end,
-            onInput: (event) => {
-              period.end = event.target.value;
-              this._markDirty();
-            },
-          })
-        ),
-        h(
-          "td",
-          {},
-          h("button", {
-            class: "icon danger",
-            title: _t(this._hass, "timetable.remove_period"),
-            text: "✕",
-            onClick: () => this._removePeriod(index),
-          })
-        )
-      )
-    );
-
-    const periodsTable = h(
-      "div",
-      { class: "scroll" },
-      h(
-        "table",
-        {},
-        h(
-          "thead",
-          {},
-          h(
-            "tr",
-            {},
-            h("th", { text: _t(this._hass, "timetable.period") }),
-            h("th", { text: _t(this._hass, "timetable.start") }),
-            h("th", { text: _t(this._hass, "timetable.end") }),
-            h("th", {})
-          )
-        ),
-        h("tbody", {}, ...periodRows)
-      )
-    );
-
     const weekdays = this._showWeekend ? [0, 1, 2, 3, 4, 5, 6] : [0, 1, 2, 3, 4];
+
+    // Bell schedule and lessons are one table: each row is a period, labelled
+    // with its times. Periods are ordered by start time and numbered by
+    // position, so there is no period number to keep in sync by hand.
     const grid = draft.periods.length
       ? h(
           "div",
@@ -945,10 +901,16 @@ class SchoolTimetablePanel extends HTMLElement {
                 h(
                   "tr",
                   {},
-                  h("td", {
-                    class: "period-head",
-                    text: `${period.period}. ${period.start || "--:--"}`,
-                  }),
+                  h(
+                    "td",
+                    { class: "period-head" },
+                    h("button", {
+                      class: "link",
+                      title: _t(this._hass, "timetable.edit_period"),
+                      text: `${period.start} – ${period.end}`,
+                      onClick: () => this._editPeriod(index),
+                    })
+                  ),
                   ...weekdays.map((day) => {
                     const key = `${day}:${index}`;
                     const cell = draft.cells[key];
@@ -981,13 +943,6 @@ class SchoolTimetablePanel extends HTMLElement {
 
     return [
       meta,
-      h("h3", { text: _t(this._hass, "timetable.periods") }),
-      periodsTable,
-      h(
-        "div",
-        { class: "row" },
-        h("button", { text: _t(this._hass, "timetable.add_period"), onClick: () => this._addPeriod() })
-      ),
       h(
         "div",
         { class: "row spread" },
@@ -1009,6 +964,14 @@ class SchoolTimetablePanel extends HTMLElement {
       grid,
       h(
         "div",
+        { class: "row" },
+        h("button", {
+          text: _t(this._hass, "timetable.add_period"),
+          onClick: () => this._editPeriod(null),
+        })
+      ),
+      h(
+        "div",
         { class: "row spread" },
         this._dirtyBadge,
         h("button", {
@@ -1020,15 +983,70 @@ class SchoolTimetablePanel extends HTMLElement {
     ];
   }
 
-  _addPeriod() {
+  async _editPeriod(index) {
     const draft = this._draft;
+    const existing = index === null ? null : draft.periods[index];
     const last = draft.periods[draft.periods.length - 1];
-    const start = last ? addMinutes(last.end, 5) : "08:00";
-    draft.periods.push({
-      period: last ? Number(last.period) + 1 : 1,
-      start,
-      end: addMinutes(start, 45),
+    const start = existing ? existing.start : last ? addMinutes(last.end, 5) : "08:00";
+    const values = await this._formDialog({
+      title: _t(this._hass, "timetable.period"),
+      fields: [
+        {
+          key: "start",
+          label: _t(this._hass, "timetable.start"),
+          type: "time",
+          value: start,
+          required: true,
+        },
+        {
+          key: "end",
+          label: _t(this._hass, "timetable.end"),
+          type: "time",
+          value: existing ? existing.end : addMinutes(start, 45),
+          required: true,
+        },
+      ],
+      deletable: existing !== null,
+      validate: (input) => this._validatePeriod(input, index),
     });
+    if (!values) return;
+    if (values.__deleted) this._removePeriod(index);
+    else this._writePeriod(index, values);
+  }
+
+  _validatePeriod({ start, end }, index) {
+    // "HH:MM" compares correctly as a string, which is why times are stored that way.
+    if (end <= start) return _t(this._hass, "timetable.end_before_start");
+    const clashes = this._draft.periods.some(
+      (period, position) => position !== index && start < period.end && end > period.start
+    );
+    return clashes ? _t(this._hass, "timetable.overlap") : null;
+  }
+
+  _writePeriod(index, { start, end }) {
+    const draft = this._draft;
+    // Carry the old row position along so the lesson cells can follow their row
+    // when a changed start time re-sorts the table.
+    const rows = draft.periods.map((period, position) => ({ ...period, from: position }));
+    if (index === null) rows.push({ start, end, from: null });
+    else Object.assign(rows[index], { start, end });
+    rows.sort((left, right) => left.start.localeCompare(right.start));
+
+    const cells = {};
+    rows.forEach((row, position) => {
+      if (row.from === null) return;
+      for (let day = 0; day < 7; day++) {
+        const cell = draft.cells[`${day}:${row.from}`];
+        if (cell) cells[`${day}:${position}`] = cell;
+      }
+    });
+
+    draft.periods = rows.map((row, position) => ({
+      period: position + 1,
+      start: row.start,
+      end: row.end,
+    }));
+    draft.cells = cells;
     this._markDirty();
     this._render();
   }
@@ -1036,7 +1054,7 @@ class SchoolTimetablePanel extends HTMLElement {
   _removePeriod(index) {
     const draft = this._draft;
     draft.periods.splice(index, 1);
-    // Cells are keyed by row index, so everything below the deleted row moves up.
+    // Cells are keyed by row position, so everything below the deleted row moves up.
     const cells = {};
     for (const [key, cell] of Object.entries(draft.cells)) {
       const [day, position] = key.split(":").map(Number);
@@ -1044,6 +1062,7 @@ class SchoolTimetablePanel extends HTMLElement {
       cells[`${day}:${position > index ? position - 1 : position}`] = cell;
     }
     draft.cells = cells;
+    draft.periods = draft.periods.map((period, position) => ({ ...period, period: position + 1 }));
     this._markDirty();
     this._render();
   }
