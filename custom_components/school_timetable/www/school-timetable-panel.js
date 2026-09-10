@@ -478,6 +478,17 @@ function todayIso() {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
 
+// Lists of dated things read newest first: what is coming matters more than
+// what has been. ISO dates compare as strings, and a missing date sorts last.
+function byNewest(startOf) {
+  return (a, b) => String(startOf(b) || "").localeCompare(String(startOf(a) || ""));
+}
+
+// Over, as of today. An open end is never over.
+function isPast(endIso) {
+  return !!endIso && endIso < todayIso();
+}
+
 const STYLE = `
   /* ha-panel-custom appends a module panel with no styles of its own, so the
      panel has to claim the viewport itself. This is what Home Assistant uses
@@ -663,6 +674,12 @@ const STYLE = `
   h2 { font-size: 18px; font-weight: 500; margin: 0 0 4px; }
   h3 { font-size: 15px; font-weight: 500; margin: var(--st-gap) 0 8px; }
   .hint { color: var(--secondary-text-color, #727272); font-size: 13px; margin: 0 0 12px; }
+  /* A card's head reads as a head: the table or grid below it starts after a
+     clear gap, not tucked against the hint. */
+  .card > .hint { margin-bottom: calc(var(--st-gap) * 1.5); }
+  .card > h2 + .scroll,
+  .card > h2 + table,
+  .card > h2 + .empty { margin-top: calc(var(--st-gap) * 1.5); }
   .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .spread { justify-content: space-between; }
   .grow { flex: 1; min-width: 0; }
@@ -726,14 +743,18 @@ const STYLE = `
   table.cal th { text-align: center; font-size: 13px; padding-bottom: 0; }
   table.cal td { border-top: 0; padding: 0; }
   table.cal .cal-times {
-    width: 22px;
+    width: 28px;
     white-space: nowrap;
-    text-align: end;
+    text-align: start;
     vertical-align: middle;
     padding-inline-end: 2px;
     overflow: hidden;
     color: var(--secondary-text-color, #727272);
   }
+  /* Already over: still there, but out of the way. */
+  tr.past td,
+  ha-dropdown-item.past,
+  .menu-item.past { opacity: 0.5; }
   .cal-time { display: block; font-size: 11px; line-height: 1.3; }
   .cal-time-end { opacity: 0.6; }
   .period-row { min-height: 44px; border-top: 1px solid var(--divider-color, #e0e0e0); }
@@ -1641,6 +1662,7 @@ class SchoolTimetablePanel extends HTMLElement {
     const item = document.createElement("ha-dropdown-item");
     item.value = entry.value;
     if (entry.active) item.selected = true;
+    if (entry.past) item.classList.add("past");
     if (entry.danger) item.setAttribute("variant", "danger");
     const glyph = icon(entry.icon);
     glyph.setAttribute("slot", "icon");
@@ -1685,7 +1707,9 @@ class SchoolTimetablePanel extends HTMLElement {
           : h(
               "button",
               {
-                class: `menu-item ${item.danger ? "danger" : ""} ${item.active ? "active" : ""}`,
+                class: `menu-item ${item.danger ? "danger" : ""} ${item.active ? "active" : ""} ${
+                  item.past ? "past" : ""
+                }`,
                 role: "menuitem",
                 "aria-current": item.active ? "true" : null,
                 onClick: () => {
@@ -2258,11 +2282,12 @@ class SchoolTimetablePanel extends HTMLElement {
 
     return this._dotMenu(
       trigger,
-      kid.timetables.map((entry) => ({
+      [...kid.timetables].sort(byNewest((entry) => entry.valid_from)).map((entry) => ({
         value: entry.id,
         label: label(entry),
         icon: "calendar",
         active: !!current && entry.id === current.id,
+        past: isPast(entry.valid_to),
         run: () => {
           this._timetableId = entry.id;
           this._render();
@@ -2742,10 +2767,10 @@ class SchoolTimetablePanel extends HTMLElement {
   }
 
   _renderDaysOffCard(kid) {
-    const rows = kid.days_off.map((entry) =>
+    const rows = [...kid.days_off].sort(byNewest((entry) => entry.date)).map((entry) =>
       h(
         "tr",
-        {},
+        { class: isPast(entry.date) ? "past" : "" },
         h("td", { text: fmtDate(this._hass, entry.date) }),
         h("td", { class: "grow", text: entry.reason }),
         h(
@@ -2837,10 +2862,10 @@ class SchoolTimetablePanel extends HTMLElement {
       this._render();
     };
 
-    const rows = entries.map((entry) =>
+    const rows = [...entries].sort(byNewest((entry) => entry.start)).map((entry) =>
       h(
         "tr",
-        {},
+        { class: isPast(entry.end) ? "past" : "" },
         h(
           "td",
           {},
