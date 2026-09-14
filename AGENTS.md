@@ -113,10 +113,26 @@ from `--wa-color-on-normal`, which is set to the header text colour so it reads
 on the app bar. `ha-button` exposes no CSS parts, so custom properties are the
 only way in.
 
-The sidebar toggle in the top left only appears below `NARROW_QUERY`. On a wide
-screen Home Assistant's sidebar is already on display, so the button would only
-collapse it; on a narrow one that sidebar is hidden and this is the only way
-back to it.
+The sidebar toggle in the top left copies `ha-menu-button`'s own rule, which is
+what every other Home Assistant view follows: it appears below `NARROW_QUERY`,
+and at any width once the profile setting keeps Home Assistant's sidebar hidden
+(`hass.dockedSidebar === "always_hidden"`). Kiosk mode takes it away again. With
+that sidebar on display the button would only collapse it, so it stays out.
+`wantsSidebarToggle` holds the rule. The pane and the toolbar picker still
+follow the width alone, so on a wide screen with the sidebar hidden the bar gets
+a hamburger while the layout stays wide.
+
+Both inputs ride on `hass` rather than on a property of their own, and the
+`hass` setter repaints on almost nothing, so it compares `wantsSidebarToggle`
+across the old and the new object and repaints when the answer changes. Without
+that, changing the setting leaves the bar as it was until something else paints.
+
+Verified against frontend 20260826.6: `ha-menu-button` there reads `narrow` and
+the sidebar state from Lit contexts and ignores the `hass` and `narrow`
+properties the panel hands it, while older versions used them. Either way it
+agrees with the gate above, so the panel keeps setting both and decides
+visibility itself. The source maps next to the bundle name the exact upstream
+file and tag, which beats reading minified code.
 
 Below `NARROW_QUERY` the pane is dropped and its contents move into a picker in
 the toolbar, the way the todo panel swaps its title for a dropdown of lists when

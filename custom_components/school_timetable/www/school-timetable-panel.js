@@ -1004,6 +1004,15 @@ const SVG_MENU =
   '<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">' +
   '<path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2Z"/></svg>';
 
+// When the bar owes the user a hamburger, copied from ha-menu-button: on a
+// narrow screen, and on any screen once the profile's sidebar setting keeps
+// Home Assistant's sidebar hidden for good. Kiosk mode takes it away again.
+// Both settings ride on hass rather than on a property of the panel's own.
+function wantsSidebarToggle(hass, narrow) {
+  if (!hass || hass.kioskMode) return false;
+  return Boolean(narrow || hass.dockedSidebar === "always_hidden");
+}
+
 class SchoolTimetablePanel extends HTMLElement {
   constructor() {
     super();
@@ -1045,6 +1054,13 @@ class SchoolTimetablePanel extends HTMLElement {
     // repaint when the user changes language or their date/time format.
     if (localeSignature(previous) !== localeSignature(hass)) {
       FORMATTERS.clear();
+      this._render();
+      return;
+    }
+    // The hamburger follows the sidebar setting, which lives on hass too, so
+    // repaint when it changes whether the bar should hold one.
+    const narrow = this._isNarrow();
+    if (wantsSidebarToggle(previous, narrow) !== wantsSidebarToggle(hass, narrow)) {
       this._render();
     }
   }
@@ -1516,9 +1532,9 @@ class SchoolTimetablePanel extends HTMLElement {
 
   _ensureShell() {
     if (this._main) return;
-    // Only shown on a narrow screen, where Home Assistant hides its sidebar and
-    // this is the only way back to it. On a wide screen that sidebar is already
-    // on display and the button would just collapse it.
+    // Shown whenever Home Assistant's own sidebar is away: on a narrow screen,
+    // and on any width once the profile setting hides it for good. With that
+    // sidebar on display the button would only collapse it, so it stays out.
     this._sidebarToggle = h("div", { class: "sidebar-toggle" });
     this._menuHost = h("div", { class: "menu-host" });
     this._main = h("div", { class: "content" });
@@ -1875,9 +1891,12 @@ class SchoolTimetablePanel extends HTMLElement {
 
     this._syncMenuHost();
     const narrow = this._isNarrow();
-    this._sidebarToggle.hidden = !narrow;
-    this._syncSidebarToggle(narrow);
-    this._titleHost.classList.toggle("with-icon", narrow);
+    // The pane follows the width alone, the hamburger follows the sidebar
+    // setting as well, and the title closes up behind it whenever it is there.
+    const showToggle = wantsSidebarToggle(this._hass, narrow);
+    this._sidebarToggle.hidden = !showToggle;
+    this._syncSidebarToggle(showToggle);
+    this._titleHost.classList.toggle("with-icon", showToggle);
     this._titleHost.classList.toggle("picker", narrow);
     this._titleHost.replaceChildren(
       narrow ? this._renderViewPicker() : document.createTextNode(this._title())
@@ -1964,10 +1983,12 @@ class SchoolTimetablePanel extends HTMLElement {
   // Narrow screens lose the pane and pick the view from the toolbar instead.
   // Built like the todo panel's list picker: an ha-button in the dropdown's
   // trigger slot, with the chevron in the button's end slot.
-  // ha-menu-button is what every Home Assistant panel puts here; it wants hass
-  // and narrow and does the toggling itself.
-  _syncSidebarToggle(narrow) {
-    if (!narrow || this._sidebarToggle.dataset.kind === (this._haMenuButton ? "ha" : "own")) {
+  // ha-menu-button is what every Home Assistant panel puts here, and it does
+  // the toggling itself. It now reads narrow and the sidebar setting off a Lit
+  // context and ignores both properties below; older versions took them, and
+  // either way it lands on the same answer as the gate above.
+  _syncSidebarToggle(show) {
+    if (!show || this._sidebarToggle.dataset.kind === (this._haMenuButton ? "ha" : "own")) {
       if (this._sidebarToggle.firstElementChild && this._haMenuButton) {
         this._sidebarToggle.firstElementChild.hass = this._hass;
         this._sidebarToggle.firstElementChild.narrow = true;
