@@ -375,6 +375,6 @@ frontend and backend shapes honest.
 
 ## Release
 
-`gh workflow run release -f version=<version|major|minor|patch>` runs the
+`make release` (or `make release VERSION=<version|major|minor|patch>`) runs the
 release workflow: CI, then it bumps `manifest.json` and `PANEL_VERSION` in
 `const.py` and the panel JS, commits, tags, pushes and publishes.
