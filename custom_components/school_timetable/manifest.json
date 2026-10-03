@@ -1,15 +1,15 @@
 {
   "domain": "school_timetable",
   "name": "School Timetable",
-  "version": "1.0.0",
-  "documentation": "https://github.com/josa42/homeassistant-school-timetable",
-  "issue_tracker": "https://github.com/josa42/homeassistant-school-timetable/issues",
   "codeowners": ["@josa42"],
-  "iot_class": "local_push",
-  "integration_type": "service",
   "config_flow": true,
-  "single_config_entry": true,
   "dependencies": ["frontend", "http", "panel_custom", "websocket_api"],
+  "documentation": "https://github.com/josa42/homeassistant-school-timetable",
+  "integration_type": "service",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/josa42/homeassistant-school-timetable/issues",
   "loggers": ["ical"],
-  "requirements": ["ical>=8.0"]
+  "requirements": ["ical>=8.0"],
+  "single_config_entry": true,
+  "version": "1.0.0"
 }
