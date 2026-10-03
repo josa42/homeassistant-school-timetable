@@ -7,7 +7,7 @@
 //
 // Bump PANEL_VERSION here and in const.py together. The query string on the
 // module URL is the only cache-buster.
-const PANEL_VERSION = "1.1.0";
+const PANEL_VERSION = "1.0.0";
 
 // Home Assistant's elements are defined as its chunks arrive, which happens
 // after a panel's first paint. So the panel renders its own controls, waits on
