@@ -377,4 +377,6 @@ frontend and backend shapes honest.
 
 `make release` (or `make release VERSION=<version|major|minor|patch>`) runs the
 release workflow: CI, then it bumps `manifest.json` and `PANEL_VERSION` in
-`const.py` and the panel JS, commits, tags, pushes and publishes.
+`const.py` and the panel JS, commits, tags, pushes and publishes. The workflow
+releases `origin/main`, so `make release` stops on unpushed or uncommitted
+changes.
