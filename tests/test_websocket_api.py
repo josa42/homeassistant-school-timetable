@@ -200,3 +200,72 @@ async def test_commands_work_before_the_entry_exists(hass: HomeAssistant, hass_w
 
     assert not msg["success"]
     assert msg["error"]["code"] == "not_found"
+
+
+async def test_import_openholidays(hass: HomeAssistant, hass_storage, hass_ws_client, aioclient_mock) -> None:
+    seed_storage(hass_storage)
+    await setup_integration(hass)
+    client = await hass_ws_client(hass)
+    aioclient_mock.get(
+        "https://openholidaysapi.org/SchoolHolidays",
+        json=[
+            {
+                "id": "weihnachten-2026",
+                "startDate": "2026-12-23",
+                "endDate": "2027-01-06",
+                "name": [{"language": "EN", "text": "Christmas holidays"}],
+                "temporalScope": "FullDay",
+                "subdivisions": [{"code": "DE-BE"}],
+            }
+        ],
+    )
+    aioclient_mock.get(
+        "https://openholidaysapi.org/PublicHolidays",
+        json=[
+            {
+                "id": "einheit-2026",
+                "startDate": "2026-10-03",
+                "endDate": "2026-10-03",
+                "name": [{"language": "EN", "text": "German Unity Day"}],
+                "temporalScope": "FullDay",
+            }
+        ],
+    )
+
+    await client.send_json_auto_id({"type": "school_timetable/openholidays/import", "subdivision": "DE-BE"})
+    msg = await client.receive_json()
+
+    assert msg["success"]
+    assert (msg["result"]["added"], msg["result"]["updated"]) == (2, 0)
+    imported = next(entry for entry in msg["result"]["closed_days"] if entry["uid"] == "weihnachten-2026")
+    assert imported["source"] == "openholidays"
+    assert imported["end"] == "2027-01-06"
+    assert all(call[1].query["subdivisionCode"] == "DE-BE" for call in aioclient_mock.mock_calls)
+
+
+async def test_import_openholidays_rejects_unknown_subdivision(
+    hass: HomeAssistant, hass_storage, hass_ws_client
+) -> None:
+    seed_storage(hass_storage)
+    await setup_integration(hass)
+    client = await hass_ws_client(hass)
+
+    await client.send_json_auto_id({"type": "school_timetable/openholidays/import", "subdivision": "DE-XX"})
+    msg = await client.receive_json()
+
+    assert not msg["success"]
+
+
+async def test_import_openholidays_reports_api_errors(
+    hass: HomeAssistant, hass_storage, hass_ws_client, aioclient_mock
+) -> None:
+    seed_storage(hass_storage)
+    await setup_integration(hass)
+    client = await hass_ws_client(hass)
+    aioclient_mock.get("https://openholidaysapi.org/SchoolHolidays", status=500)
+
+    await client.send_json_auto_id({"type": "school_timetable/openholidays/import", "subdivision": "DE-BE"})
+    msg = await client.receive_json()
+
+    assert not msg["success"]
+    assert msg["error"]["code"] == "import_failed"

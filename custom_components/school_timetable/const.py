@@ -37,10 +37,12 @@ WEEK_EVERY: Final = "every"
 WEEK_A: Final = "a"
 WEEK_B: Final = "b"
 
-# Where a closed day came from. ICS-imported rows carry the source UID so a
+# Where a closed day came from. Imported rows carry the source UID so a
 # re-import updates them; manual rows are never touched by an import.
 SOURCE_MANUAL: Final = "manual"
 SOURCE_ICS: Final = "ics"
+SOURCE_OPENHOLIDAYS: Final = "openholidays"
+SOURCES: Final = (SOURCE_MANUAL, SOURCE_ICS, SOURCE_OPENHOLIDAYS)
 
 # How far ahead `CalendarEntity.event` looks for the next school day. Long
 # enough to cross the summer holidays so the attribute is never empty during

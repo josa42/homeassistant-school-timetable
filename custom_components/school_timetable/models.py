@@ -16,7 +16,7 @@ import logging
 from typing import Any
 from uuid import uuid4
 
-from .const import DEFAULT_PERIOD_TIMES, SOURCE_ICS, SOURCE_MANUAL, WEEK_EVERY
+from .const import DEFAULT_PERIOD_TIMES, SOURCE_MANUAL, SOURCES, WEEK_EVERY
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -310,7 +310,7 @@ class ClosedDay:
             name=str(data.get("name") or ""),
             start=start,
             end=end,
-            source=source if source in (SOURCE_MANUAL, SOURCE_ICS) else SOURCE_MANUAL,
+            source=source if source in SOURCES else SOURCE_MANUAL,
             uid=str(data["uid"]) if data.get("uid") else None,
         )
 

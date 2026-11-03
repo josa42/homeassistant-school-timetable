@@ -104,6 +104,7 @@ const STRINGS = {
     "closed.source": "Source",
     "closed.source_manual": "manual",
     "closed.source_ics": "ICS",
+    "closed.source_openholidays": "OpenHolidays",
     "closed.empty": "Nothing here yet. Add a holiday or import an ICS file.",
     "closed.delete_confirm": "Delete “{name}”?",
     "closed.selected": "{count} selected",
@@ -126,6 +127,10 @@ const STRINGS = {
     "import.nothing_chosen": "Choose a file or paste a URL first.",
     "import.result": "{added} added, {updated} updated.",
     "import.failed": "Import failed: {error}",
+    "openholidays.section": "Load school and public holidays",
+    "openholidays.hint": "Fetches the school and public holidays of a German state from openholidaysapi.org, from last year to two years ahead. They become normal rows you can edit. Loading again updates them and leaves manual entries alone.",
+    "openholidays.subdivision": "State",
+    "openholidays.button": "Load",
     "weekday.0": "Mon",
     "weekday.1": "Tue",
     "weekday.2": "Wed",
@@ -199,6 +204,7 @@ const STRINGS = {
     "closed.source": "Quelle",
     "closed.source_manual": "manuell",
     "closed.source_ics": "ICS",
+    "closed.source_openholidays": "OpenHolidays",
     "closed.empty": "Noch nichts da. Eintrag anlegen oder ICS-Datei importieren.",
     "closed.delete_confirm": "„{name}“ löschen?",
     "closed.selected": "{count} ausgewählt",
@@ -221,6 +227,10 @@ const STRINGS = {
     "import.nothing_chosen": "Erst eine Datei wählen oder eine URL einfügen.",
     "import.result": "{added} neu, {updated} aktualisiert.",
     "import.failed": "Import fehlgeschlagen: {error}",
+    "openholidays.section": "Ferien und Feiertage laden",
+    "openholidays.hint": "Lädt die Ferien und Feiertage eines Bundeslands von openholidaysapi.org, vom letzten Jahr bis zwei Jahre voraus. Sie werden normale, bearbeitbare Zeilen. Erneutes Laden aktualisiert sie und lässt manuelle Einträge unberührt.",
+    "openholidays.subdivision": "Bundesland",
+    "openholidays.button": "Laden",
     "weekday.0": "Mo",
     "weekday.1": "Di",
     "weekday.2": "Mi",
@@ -328,6 +338,31 @@ function _t(hass, key, params) {
 // ha-icon is defined in a lazily loaded chunk that a panel cannot count on, so
 // the pane draws its own. Every path below is the Material Design Icons data
 // Home Assistant itself ships (mdiAccount, mdiPlus, mdiCalendarBlank, mdiCog).
+// The Bundesländer the OpenHolidays import offers, keyed by the API's code.
+// Keep in step with SUBDIVISIONS in openholidays.py.
+const SUBDIVISIONS = {
+  "DE-BB": { de: "Brandenburg", en: "Brandenburg" },
+  "DE-BE": { de: "Berlin", en: "Berlin" },
+  "DE-BW": { de: "Baden-Württemberg", en: "Baden-Württemberg" },
+  "DE-BY": { de: "Bayern", en: "Bavaria" },
+  "DE-HB": { de: "Bremen", en: "Bremen" },
+  "DE-HE": { de: "Hessen", en: "Hesse" },
+  "DE-HH": { de: "Hamburg", en: "Hamburg" },
+  "DE-MV": { de: "Mecklenburg-Vorpommern", en: "Mecklenburg-Western Pomerania" },
+  "DE-NI": { de: "Niedersachsen", en: "Lower Saxony" },
+  "DE-NW": { de: "Nordrhein-Westfalen", en: "North Rhine-Westphalia" },
+  "DE-RP": { de: "Rheinland-Pfalz", en: "Rhineland-Palatinate" },
+  "DE-SH": { de: "Schleswig-Holstein", en: "Schleswig-Holstein" },
+  "DE-SL": { de: "Saarland", en: "Saarland" },
+  "DE-SN": { de: "Sachsen", en: "Saxony" },
+  "DE-ST": { de: "Sachsen-Anhalt", en: "Saxony-Anhalt" },
+  "DE-TH": { de: "Thüringen", en: "Thuringia" },
+};
+
+// The last state loaded, so a reload a year later starts from it. Per browser
+// on purpose: it is a convenience, not a setting.
+const SUBDIVISION_KEY = "school-timetable.subdivision";
+
 const MDI = {
   account:
     "M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z",
@@ -1788,6 +1823,12 @@ class SchoolTimetablePanel extends HTMLElement {
           run: () => this._editClosedDay(null),
         },
         {
+          value: "openholidays-import",
+          icon: "calendar",
+          label: _t(this._hass, "openholidays.section"),
+          run: () => this._openHolidaysDialog(),
+        },
+        {
           value: "ics-import",
           icon: "upload",
           label: _t(this._hass, "import.section"),
@@ -2906,7 +2947,7 @@ class SchoolTimetablePanel extends HTMLElement {
           {},
           h("span", {
             class: "badge",
-            text: _t(this._hass, entry.source === "ics" ? "closed.source_ics" : "closed.source_manual"),
+            text: _t(this._hass, `closed.source_${entry.source}`),
           })
         ),
         h(
@@ -3055,15 +3096,50 @@ class SchoolTimetablePanel extends HTMLElement {
     file.focus();
   }
 
+  async _openHolidaysDialog() {
+    const language = this._hass.language === "de" ? "de" : "en";
+    const options = Object.entries(SUBDIVISIONS)
+      .map(([value, names]) => ({ value, label: names[language] }))
+      .sort((a, b) => a.label.localeCompare(b.label, this._hass.language));
+    let last = null;
+    try {
+      last = localStorage.getItem(SUBDIVISION_KEY);
+    } catch (_err) {
+      // Storage can be blocked; the picker then starts at the top.
+    }
+
+    const values = await this._formDialog({
+      title: _t(this._hass, "openholidays.section"),
+      description: _t(this._hass, "openholidays.hint"),
+      submitLabel: _t(this._hass, "openholidays.button"),
+      fields: [
+        {
+          key: "subdivision",
+          label: _t(this._hass, "openholidays.subdivision"),
+          type: "select",
+          options,
+          value: last in SUBDIVISIONS ? last : options[0].value,
+        },
+      ],
+    });
+    if (!values) return;
+    try {
+      localStorage.setItem(SUBDIVISION_KEY, values.subdivision);
+    } catch (_err) {
+      // Not remembering the choice is fine.
+    }
+    await this._import({ subdivision: values.subdivision }, "school_timetable/openholidays/import");
+  }
+
   async _importFile(file) {
     const content = await file.text();
     await this._import({ content });
   }
 
-  async _import(payload) {
+  async _import(payload, type = "school_timetable/ics/import") {
     this._setStatus(_t(this._hass, "import.running"));
     try {
-      const result = await this._hass.callWS({ type: "school_timetable/ics/import", ...payload });
+      const result = await this._hass.callWS({ type, ...payload });
       this._setStatus(
         _t(this._hass, "import.result", { added: result.added, updated: result.updated })
       );

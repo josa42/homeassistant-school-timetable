@@ -148,23 +148,26 @@ class SchoolTimetableStore:
         self.data.closed_days = sorted(parsed, key=lambda entry: entry.start)
         await self.async_save()
 
-    async def async_import_holidays(self, holidays: Iterable[ImportedHoliday]) -> tuple[int, int]:
-        """Merge parsed ICS holidays in, returning (added, updated).
+    async def async_import_holidays(
+        self, holidays: Iterable[ImportedHoliday], source: str = SOURCE_ICS
+    ) -> tuple[int, int]:
+        """Merge imported holidays in, returning (added, updated).
 
-        Imported rows are matched on their iCal UID plus start date, because
-        recurring events repeat the same UID. Rows added by hand are never
-        touched.
+        Imported rows are matched on their UID plus start date, because
+        recurring events repeat the same UID. Only rows from the same `source`
+        are candidates, so an ICS feed and the OpenHolidays API never update
+        each other's rows, and rows added by hand are never touched.
         """
         by_key: dict[tuple[str, str], ClosedDay] = {
             (entry.uid, entry.start.isoformat()): entry
             for entry in self.data.closed_days
-            if entry.source == SOURCE_ICS and entry.uid
+            if entry.source == source and entry.uid
         }
         added = updated = 0
         for holiday in holidays:
             existing = by_key.get((holiday.uid, holiday.start.isoformat())) if holiday.uid else None
             if existing is None:
-                existing = _match_by_value(self.data.closed_days, holiday)
+                existing = _match_by_value(self.data.closed_days, holiday, source)
             if existing is None:
                 self.data.closed_days.append(
                     ClosedDay(
@@ -172,7 +175,7 @@ class SchoolTimetableStore:
                         name=holiday.name,
                         start=holiday.start,
                         end=holiday.end,
-                        source=SOURCE_ICS,
+                        source=source,
                         uid=holiday.uid,
                     )
                 )
@@ -195,10 +198,10 @@ class SchoolTimetableStore:
         return added, updated
 
 
-def _match_by_value(entries: list[ClosedDay], holiday: ImportedHoliday) -> ClosedDay | None:
-    """Fall back to matching an ICS row on its dates when it carries no UID."""
+def _match_by_value(entries: list[ClosedDay], holiday: ImportedHoliday, source: str) -> ClosedDay | None:
+    """Fall back to matching an imported row on its dates when it carries no UID."""
     for entry in entries:
-        if entry.source != SOURCE_ICS:
+        if entry.source != source:
             continue
         if entry.start == holiday.start and entry.end == holiday.end:
             return entry

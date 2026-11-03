@@ -18,7 +18,8 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 import voluptuous as vol
 
-from .const import DOMAIN, SOURCE_ICS, SOURCE_MANUAL, WEEK_A, WEEK_B, WEEK_EVERY
+from . import openholidays
+from .const import DOMAIN, SOURCE_MANUAL, SOURCE_OPENHOLIDAYS, SOURCES, WEEK_A, WEEK_B, WEEK_EVERY
 from .ics import MAX_ICS_BYTES, IcsError, parse_holidays
 from .store import NotFound, SchoolTimetableStore
 
@@ -74,7 +75,7 @@ _CLOSED_DAY_SCHEMA = vol.Schema(
         vol.Required("name"): str,
         vol.Required("start"): _DATE,
         vol.Required("end"): _DATE,
-        vol.Optional("source", default=SOURCE_MANUAL): vol.In([SOURCE_MANUAL, SOURCE_ICS]),
+        vol.Optional("source", default=SOURCE_MANUAL): vol.In(SOURCES),
         vol.Optional("uid"): vol.Any(str, None),
     }
 )
@@ -95,6 +96,7 @@ def async_register(hass: HomeAssistant) -> None:
         handle_set_closed_days,
         handle_set_settings,
         handle_import_ics,
+        handle_import_openholidays,
     ):
         websocket_api.async_register_command(hass, handler)
 
@@ -321,3 +323,47 @@ async def _async_fetch_ics(hass: HomeAssistant, url: str) -> str:
     if len(raw) > MAX_ICS_BYTES:
         raise IcsError("Calendar is too large to import")
     return raw.decode("utf-8", errors="replace")
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "school_timetable/openholidays/import",
+        vol.Required("subdivision"): vol.In(openholidays.SUBDIVISIONS),
+    }
+)
+@websocket_api.require_admin
+@websocket_api.async_response
+@_with_store
+async def handle_import_openholidays(hass, connection, msg, store) -> None:
+    """Import the Ferien and Feiertage of one Bundesland from the OpenHolidays API."""
+    subdivision = msg["subdivision"]
+    # The API names German holidays in German and English only.
+    language = "DE" if hass.config.language.startswith("de") else "EN"
+    holidays = []
+    try:
+        for endpoint in openholidays.ENDPOINTS:
+            payload = await _async_fetch_json(
+                hass,
+                f"{openholidays.API_URL}/{endpoint}",
+                openholidays.request_params(subdivision, language),
+            )
+            holidays.extend(openholidays.parse_holidays(payload, subdivision))
+    except openholidays.OpenHolidaysError as err:
+        connection.send_error(msg["id"], "import_failed", str(err))
+        return
+
+    added, updated = await store.async_import_holidays(holidays, SOURCE_OPENHOLIDAYS)
+    _send_document(connection, msg["id"], store, added=added, updated=updated)
+
+
+async def _async_fetch_json(hass: HomeAssistant, url: str, params: dict[str, str]) -> Any:
+    session = async_get_clientsession(hass)
+    try:
+        async with asyncio.timeout(FETCH_TIMEOUT):
+            response = await session.get(url, params=params, headers={"accept": "application/json"})
+            response.raise_for_status()
+            return await response.json()
+    except (TimeoutError, asyncio.TimeoutError) as err:
+        raise openholidays.OpenHolidaysError(f"Timed out fetching {url}") from err
+    except Exception as err:
+        raise openholidays.OpenHolidaysError(f"Could not fetch {url}: {err}") from err

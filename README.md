@@ -6,7 +6,8 @@ day and the day's lessons in the event description.
 
 Everything is edited in a **Stundenplan** panel in the sidebar: kids, their
 weekly grids, and the shared list of school and public holidays. Holidays can be
-typed in or imported from an ICS file. The panel lists the kids down the left,
+typed in, loaded for a Bundesland from the OpenHolidays API, or imported from an
+ICS file. The panel lists the kids down the left,
 with Ferien and Settings underneath them.
 
 ## What it generates
@@ -75,8 +76,8 @@ top right.
 Adding, renaming and deleting a kid or a timetable, and adding a day off, all
 live in the menu in the top right. A timetable's label and date range are edited
 there too, under *Stundenplan bearbeiten*.
-4. **Add holidays** under Ferien, by hand or by importing an ICS file from the
-   menu in the top right.
+4. **Add holidays** under Ferien, by hand, by loading them for your Bundesland,
+   or by importing an ICS file from the menu in the top right.
 
 Under Settings, the default lesson times decide what a new timetable starts
 from.
@@ -105,6 +106,12 @@ school's Pädagogischer Tag, goes in that kid's **freie Tage** instead.
 Rows can be ticked off in bulk to delete them together, or to run a search and
 replace across their names, which is the quick way to fix up a batch of imported
 entries.
+
+*Ferien und Feiertage laden* fetches the school and public holidays of one
+Bundesland from [OpenHolidays](https://www.openholidaysapi.org), from a year back
+to two years ahead. Loading again updates those rows in place, so run it once a
+year to pick up the next school year. Holidays of a single town, such as the
+Augsburger Friedensfest, are left out and can be added by hand.
 
 Importing an ICS file writes normal, editable rows. Importing the same feed
 again matches on the iCal UID and updates those rows in place; rows you added by

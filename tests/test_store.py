@@ -228,3 +228,17 @@ async def test_listeners_fire_on_every_save(store: SchoolTimetableStore) -> None
     unsub()
     await store.async_add_kid("Cara")
     assert len(calls) == 1
+
+
+async def test_sources_do_not_update_each_other(store: SchoolTimetableStore) -> None:
+    """An OpenHolidays import leaves the rows of an ICS feed alone, even on the same dates."""
+    await store.async_import_holidays([_holiday(None, "Herbstferien (ICS)", "2026-10-12", "2026-10-23")])
+    added, updated = await store.async_import_holidays(
+        [_holiday(None, "Herbstferien (API)", "2026-10-12", "2026-10-23")], "openholidays"
+    )
+
+    assert (added, updated) == (1, 0)
+    assert {entry.source for entry in store.data.closed_days if entry.name.startswith("Herbstferien (")} == {
+        "ics",
+        "openholidays",
+    }
