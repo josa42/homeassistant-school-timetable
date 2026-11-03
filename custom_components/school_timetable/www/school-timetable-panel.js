@@ -93,6 +93,9 @@ const STRINGS = {
     "days_off.add": "Add day off",
     "days_off.title": "Day off",
     "days_off.date": "Date",
+    "days_off.start": "First day",
+    "days_off.end": "Last day",
+    "days_off.end_before_start": "The last day is before the first day.",
     "days_off.reason": "Reason",
     "days_off.empty": "None.",
     "closed.section": "School and public holidays",
@@ -193,6 +196,9 @@ const STRINGS = {
     "days_off.add": "Freien Tag hinzufügen",
     "days_off.title": "Freier Tag",
     "days_off.date": "Datum",
+    "days_off.start": "Erster Tag",
+    "days_off.end": "Letzter Tag",
+    "days_off.end_before_start": "Der letzte Tag liegt vor dem ersten.",
     "days_off.reason": "Grund",
     "days_off.empty": "Keine.",
     "closed.section": "Ferien und Feiertage",
@@ -2830,11 +2836,16 @@ class SchoolTimetablePanel extends HTMLElement {
   }
 
   _renderDaysOffCard(kid) {
-    const rows = [...kid.days_off].sort(byNewest((entry) => entry.date)).map((entry) =>
+    const rows = [...kid.days_off].sort(byNewest((entry) => entry.start)).map((entry) =>
       h(
         "tr",
-        { class: isPast(entry.date) ? "past" : "" },
-        h("td", { text: fmtDate(this._hass, entry.date) }),
+        { class: isPast(entry.end) ? "past" : "" },
+        h("td", {
+          text:
+            entry.start === entry.end
+              ? fmtDate(this._hass, entry.start)
+              : `${fmtDate(this._hass, entry.start)} – ${fmtDate(this._hass, entry.end)}`,
+        }),
         h("td", { class: "grow", text: entry.reason }),
         h(
           "td",
@@ -2882,14 +2893,23 @@ class SchoolTimetablePanel extends HTMLElement {
       title: _t(this._hass, "days_off.title"),
       fields: [
         {
-          key: "date",
-          label: _t(this._hass, "days_off.date"),
+          key: "start",
+          label: _t(this._hass, "days_off.start"),
           type: "date",
-          value: entry ? entry.date : todayIso(),
+          value: entry ? entry.start : todayIso(),
+          required: true,
+        },
+        {
+          key: "end",
+          label: _t(this._hass, "days_off.end"),
+          type: "date",
+          value: entry ? entry.end : todayIso(),
           required: true,
         },
         { key: "reason", label: _t(this._hass, "days_off.reason"), value: entry ? entry.reason : "" },
       ],
+      validate: (values) =>
+        values.end < values.start ? _t(this._hass, "days_off.end_before_start") : null,
       deletable: entry !== null,
     });
     if (!values) return;
@@ -2905,7 +2925,11 @@ class SchoolTimetablePanel extends HTMLElement {
     await this._call({
       type: "school_timetable/kid/days_off",
       kid_id: kid.id,
-      days_off: entries.map((entry) => ({ date: entry.date, reason: entry.reason || "" })),
+      days_off: entries.map((entry) => ({
+        start: entry.start,
+        end: entry.end,
+        reason: entry.reason || "",
+      })),
     });
   }
 

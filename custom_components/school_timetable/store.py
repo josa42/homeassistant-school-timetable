@@ -90,7 +90,7 @@ class SchoolTimetableStore:
         """Replace a kid's personal days off with `entries`."""
         kid = self._kid(kid_id)
         parsed = [entry for entry in (DayOff.from_dict(raw) for raw in entries) if entry]
-        kid.days_off = sorted(parsed, key=lambda entry: entry.date)
+        kid.days_off = sorted(parsed, key=lambda entry: entry.start)
         await self.async_save()
         return kid
 

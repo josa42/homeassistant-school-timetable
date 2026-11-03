@@ -101,7 +101,8 @@ Leaving `valid to` empty makes a timetable open-ended.
 
 The holiday list is shared by every kid, since Ferien and Feiertage are set per
 Bundesland. Anything that affects one kid only, such as a sick day or their
-school's Pädagogischer Tag, goes in that kid's **freie Tage** instead.
+school's Pädagogischer Tag, goes in that kid's **freie Tage** instead. A day off
+has a first and a last day, so a week of illness is one entry.
 
 Rows can be ticked off in bulk to delete them together, or to run a search and
 replace across their names, which is the quick way to fix up a batch of imported

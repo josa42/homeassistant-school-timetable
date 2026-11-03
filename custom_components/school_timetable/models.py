@@ -203,22 +203,30 @@ class Timetable:
 
 @dataclass(slots=True)
 class DayOff:
-    """A single date on which one kid has no school."""
+    """A date range on which one kid has no school. `end` is inclusive."""
 
-    date: date
+    start: date
+    end: date
     reason: str = ""
 
+    def contains(self, day: date) -> bool:
+        return self.start <= day <= self.end
+
     def to_dict(self) -> dict[str, Any]:
-        return {"date": self.date.isoformat(), "reason": self.reason}
+        return {"start": self.start.isoformat(), "end": self.end.isoformat(), "reason": self.reason}
 
     @classmethod
     def from_dict(cls, data: Any) -> DayOff | None:
         if not isinstance(data, dict):
             return None
-        day = parse_date(data.get("date"))
-        if day is None:
+        # Days off used to be single dates stored under `date`.
+        start = parse_date(data.get("start") or data.get("date"))
+        end = parse_date(data.get("end")) or start
+        if start is None or end is None:
             return None
-        return cls(date=day, reason=str(data.get("reason") or ""))
+        if end < start:
+            start, end = end, start
+        return cls(start=start, end=end, reason=str(data.get("reason") or ""))
 
 
 @dataclass(slots=True)
@@ -242,7 +250,7 @@ class Kid:
         return max(candidates, key=lambda tt: tt.valid_from)
 
     def is_day_off(self, day: date) -> bool:
-        return any(entry.date == day for entry in self.days_off)
+        return any(entry.contains(day) for entry in self.days_off)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -265,7 +273,7 @@ class Kid:
             id=str(data.get("id") or new_id()),
             name=name,
             timetables=timetables,
-            days_off=sorted(days_off, key=lambda entry: entry.date),
+            days_off=sorted(days_off, key=lambda entry: entry.start),
         )
 
 

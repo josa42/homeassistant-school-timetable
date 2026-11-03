@@ -41,7 +41,7 @@ def sample_data() -> dict[str, Any]:
                         ],
                     }
                 ],
-                "days_off": [{"date": "2026-11-02", "reason": "krank"}],
+                "days_off": [{"start": "2026-11-02", "end": "2026-11-04", "reason": "krank"}],
             }
         ],
         "closed_days": [

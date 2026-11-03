@@ -7,6 +7,7 @@ from datetime import date
 import pytest
 
 from custom_components.school_timetable.ics import ImportedHoliday
+from custom_components.school_timetable.models import DayOff
 from custom_components.school_timetable.store import NotFound, SchoolTimetableStore
 
 from .common import KID_ID, TIMETABLE_ID, sample_data, seed_storage
@@ -122,11 +123,31 @@ async def test_the_weekend_flag_round_trips(store: SchoolTimetableStore) -> None
 async def test_days_off_are_replaced_and_sorted(store: SchoolTimetableStore) -> None:
     await store.async_set_days_off(
         KID_ID,
-        [{"date": "2026-12-08", "reason": "krank"}, {"date": "2026-11-02", "reason": "Päd. Tag"}],
+        [
+            {"start": "2026-12-08", "end": "2026-12-10", "reason": "krank"},
+            {"start": "2026-11-02", "end": "2026-11-02", "reason": "Päd. Tag"},
+        ],
     )
     kid = store.data.kid(KID_ID)
 
-    assert [entry.date.isoformat() for entry in kid.days_off] == ["2026-11-02", "2026-12-08"]
+    assert [(entry.start.isoformat(), entry.end.isoformat()) for entry in kid.days_off] == [
+        ("2026-11-02", "2026-11-02"),
+        ("2026-12-08", "2026-12-10"),
+    ]
+
+
+def test_a_stored_single_date_reads_as_a_one_day_range() -> None:
+    """Days off used to hold one `date`; the store file may still have them."""
+    entry = DayOff.from_dict({"date": "2026-11-02", "reason": "krank"})
+
+    assert (entry.start, entry.end) == (date(2026, 11, 2), date(2026, 11, 2))
+    assert entry.to_dict() == {"start": "2026-11-02", "end": "2026-11-02", "reason": "krank"}
+
+
+def test_a_reversed_day_off_range_is_swapped() -> None:
+    entry = DayOff.from_dict({"start": "2026-11-04", "end": "2026-11-02"})
+
+    assert (entry.start, entry.end) == (date(2026, 11, 2), date(2026, 11, 4))
 
 
 async def test_a_new_timetable_seeds_the_default_bell_schedule(

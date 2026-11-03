@@ -59,10 +59,12 @@ async def test_holidays_and_days_off_produce_no_events(hass: HomeAssistant, hass
     await setup_integration(hass)
 
     holidays = await _get_events(hass, "calendar.school_anna", "2026-10-12 00:00:00", "2026-10-24 00:00:00")
-    day_off = await _get_events(hass, "calendar.school_anna", "2026-11-02 00:00:00", "2026-11-03 00:00:00")
+    days_off = await _get_events(hass, "calendar.school_anna", "2026-11-02 00:00:00", "2026-11-05 00:00:00")
+    after = await _get_events(hass, "calendar.school_anna", "2026-11-09 00:00:00", "2026-11-10 00:00:00")
 
     assert holidays == []
-    assert day_off == []
+    assert days_off == []
+    assert after != []
 
 
 async def test_name_follows_the_configured_language(hass: HomeAssistant, hass_storage) -> None:

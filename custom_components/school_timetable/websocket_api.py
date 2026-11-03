@@ -64,7 +64,8 @@ _TIMETABLE_SCHEMA = vol.Schema(
 
 _DAY_OFF_SCHEMA = vol.Schema(
     {
-        vol.Required("date"): _DATE,
+        vol.Required("start"): _DATE,
+        vol.Required("end"): _DATE,
         vol.Optional("reason", default=""): str,
     }
 )
