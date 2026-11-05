@@ -16,7 +16,7 @@ STORAGE_KEY: Final = "school_timetable"
 PANEL_URL_PATH: Final = "school-timetable"
 PANEL_ASSET_URL: Final = "/school-timetable/school-timetable-panel.js"
 PANEL_COMPONENT_NAME: Final = "school-timetable-panel"
-PANEL_VERSION: Final = "1.0.0"
+PANEL_VERSION: Final = "1.1.0"
 PANEL_ICON: Final = "mdi:school"
 
 # Seed bell schedule, used until the user edits the defaults in settings. A
