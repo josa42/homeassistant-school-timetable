@@ -44,11 +44,14 @@ something asks for them, so an edit in the panel shows up immediately.
 
 ## Installation
 
-**HACS:** add this repository as a custom integration in HACS, then install
-*School Timetable*.
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=josa42&repository=homeassistant-school-timetable&category=integration)
 
-**Manual:** copy `custom_components/school_timetable` into your Home Assistant
-`config/custom_components/` directory.
+### Requirements
+
+- Home Assistant **2026.9.1** or newer
+
+[Manual installation](docs/manual_installation.md) covers adding the repository
+by hand and installing without HACS.
 
 Restart Home Assistant, then add the integration under **Settings → Devices &
 Services → Add integration → School Timetable**. There is nothing to configure
